@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SightScribe - Live Transcripts</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="panel-header">
+      <div class="brand-row">
+        <div class="brand">
+          <div class="logo-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2v20M17 5v14M22 9v6M7 7v10M2 11v2"/>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <h1>SightScribe</h1>
+            <span class="brand-sub">Live Captions & Audio Transcriber</span>
+          </div>
+        </div>
+
+        <!-- Status Indicator Pill -->
+        <div id="statusPill" class="status-pill idle">
+          <span class="status-dot"></span>
+          <span id="statusText" class="status-label">Idle</span>
+        </div>
+      </div>
+
+      <!-- Active Tab Card (Shown when listening) -->
+      <div id="activeTabCard" class="active-tab-card hidden">
+        <div class="tab-info">
+          <img id="tabFavicon" class="tab-favicon" src="" alt="">
+          <span id="tabTitle" class="tab-title" title="Active Tab">Listening to Tab</span>
+        </div>
+        <div class="audio-wave-bars">
+          <span class="bar bar-1"></span>
+          <span class="bar bar-2"></span>
+          <span class="bar bar-3"></span>
+          <span class="bar bar-4"></span>
+          <span class="bar bar-5"></span>
+        </div>
+      </div>
+
+      <!-- Live Visualizer Canvas -->
+      <div class="visualizer-wrapper">
+        <canvas id="visualizerCanvas" width="360" height="24"></canvas>
+      </div>
+
+      <!-- Action & Search Toolbar -->
+      <div class="toolbar">
+        <div class="search-box">
+          <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="searchInput" placeholder="Search lyrics or words..." />
+          <button id="clearSearchBtn" class="clear-search-btn hidden" title="Clear search">&times;</button>
+        </div>
+
+        <div class="action-buttons">
+          <button id="copyAllBtn" class="tool-btn" title="Copy All Transcripts">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+          <button id="downloadSrtBtn" class="tool-btn" title="Export as SubRip (.SRT) Subtitles">
+            <span class="badge-text">SRT</span>
+          </button>
+          <button id="downloadTxtBtn" class="tool-btn" title="Export as Plain Text (.TXT)">
+            <span class="badge-text">TXT</span>
+          </button>
+          <button id="clearTranscriptsBtn" class="tool-btn danger" title="Clear Transcript">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Live Captions Feed -->
+    <main class="feed-container" id="feedContainer">
+      <!-- Empty State View -->
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon-wrap">
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+        </div>
+        <h2>Hear Any Song or Video</h2>
+        <p>SightScribe listens to audio directly from your active browser tab and streams instant AI captions.</p>
+        <div class="hint-list">
+          <div class="hint-item">
+            <span class="hint-dot"></span>
+            <span>Plays through your speakers without interruption</span>
+          </div>
+          <div class="hint-item">
+            <span class="hint-dot"></span>
+            <span>Accurate for music lyrics, YouTube, podcasts, and foreign languages</span>
+          </div>
+          <div class="hint-item">
+            <span class="hint-dot"></span>
+            <span>Export full transcripts as ready-to-use <strong>.SRT</strong> or <strong>.TXT</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transcript Segments List -->
+      <div id="transcriptsList" class="transcripts-list"></div>
+
+      <!-- Jump to Latest Floating Button -->
+      <button id="jumpBottomBtn" class="jump-bottom-btn hidden">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <polyline points="19 12 12 19 5 12"></polyline>
+        </svg>
+        <span>Jump to live</span>
+      </button>
+    </main>
+
+    <!-- Error Toast Notification -->
+    <div id="errorToast" class="toast-error hidden">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      <span id="errorMessage" class="toast-text"></span>
+      <button id="closeToastBtn" class="toast-close">&times;</button>
+    </div>
+
+    <!-- Success Toast Notification -->
+    <div id="successToast" class="toast-success hidden">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20 6L9 17l-5-5"></path>
+      </svg>
+      <span id="successMessage" class="toast-text"></span>
+    </div>
+
+    <!-- Bottom Action Footer -->
+    <footer class="panel-footer">
+      <div class="footer-info">
+        <span id="providerInfo" class="provider-tag">Engine: Groq Whisper</span>
+        <span id="segmentCount" class="segment-counter">0 captions</span>
+      </div>
+
+      <div class="footer-controls">
+        <button id="toggleCaptureBtn" class="btn-primary start">
+          <div class="btn-icon">
+            <svg class="play-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <svg class="stop-icon hidden" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+            </svg>
+          </div>
+          <span id="toggleCaptureText">Start Captions</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <script type="module" src="sidepanel.js"></script>
+</body>
+</html>

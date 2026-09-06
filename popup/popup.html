@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SightScribe Controls</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="brand">
+        <div class="logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v20M17 5v14M22 9v6M7 7v10M2 11v2"/>
+          </svg>
+        </div>
+        <div>
+          <h1>SightScribe</h1>
+          <p class="subtitle">Live Tab Audio & Video Captions</p>
+        </div>
+      </div>
+      <div id="statusBadge" class="status-badge idle">
+        <span class="status-dot"></span>
+        <span id="statusLabel">Idle</span>
+      </div>
+    </header>
+
+    <!-- Main Control Section -->
+    <section class="main-controls">
+      <!-- Big Toggle Button -->
+      <button id="toggleBtn" class="btn-toggle start">
+        <div class="btn-toggle-content">
+          <svg class="icon-play" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <svg class="icon-stop hidden" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+          </svg>
+          <div class="btn-text-group">
+            <span id="toggleBtnText" class="btn-title">Start Captions</span>
+            <span id="toggleBtnSub" class="btn-desc">Hear audio from current tab</span>
+          </div>
+        </div>
+      </button>
+
+      <!-- Open Side Panel Button -->
+      <button id="openSidePanelBtn" class="btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="15" y1="3" x2="15" y2="21"></line>
+        </svg>
+        <span>Open Side Panel Transcript</span>
+      </button>
+
+      <!-- Active Tab Card (Shown when listening) -->
+      <div id="activeTabNotice" class="active-tab-notice hidden">
+        <div class="tab-notice-header">
+          <span class="pulse-ring"></span>
+          <span class="notice-title">Capturing Tab Sound</span>
+        </div>
+        <div class="tab-details">
+          <img id="popupFavicon" class="notice-favicon" src="" alt="">
+          <span id="popupTabTitle" class="notice-tab-name">Tab Title</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Settings Accordion / Form -->
+    <section class="settings-section">
+      <div class="section-title-row" id="toggleSettingsBtn">
+        <h2>AI Engine & Settings</h2>
+        <svg class="chevron-icon" id="settingsChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </div>
+
+      <div class="settings-body" id="settingsBody">
+        <!-- AI Engine Selection -->
+        <div class="form-group">
+          <label for="providerSelect">Speech AI Engine</label>
+          <select id="providerSelect">
+            <option value="groq">Groq Whisper Turbo (Free & Blazing Fast)</option>
+            <option value="openai">OpenAI Whisper API</option>
+            <option value="custom">Custom Whisper / OpenAI Compatible</option>
+          </select>
+        </div>
+
+        <!-- API Key Input -->
+        <div class="form-group">
+          <div class="label-with-link">
+            <label for="apiKeyInput">API Key</label>
+            <a href="https://console.groq.com/keys" target="_blank" id="apiKeyLink" class="helper-link">Get Free Key ↗</a>
+          </div>
+          <div class="input-with-action">
+            <input type="password" id="apiKeyInput" placeholder="gsk_... or sk-..." />
+            <button type="button" id="toggleKeyVisibilityBtn" class="action-btn" title="Show/Hide Key">
+              <svg id="eyeIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </div>
+          <div class="test-key-row">
+            <button type="button" id="testApiKeyBtn" class="btn-outline-sm">Test Connection</button>
+            <span id="testKeyStatus" class="test-status"></span>
+          </div>
+        </div>
+
+        <!-- Model Selection -->
+        <div class="form-group">
+          <label for="modelSelect">AI Model</label>
+          <select id="modelSelect">
+            <option value="whisper-large-v3-turbo">whisper-large-v3-turbo (Recommended)</option>
+            <option value="whisper-large-v3">whisper-large-v3 (Highest Accuracy)</option>
+          </select>
+        </div>
+
+        <!-- Custom Endpoint (Shown if provider is custom) -->
+        <div class="form-group hidden" id="customEndpointGroup">
+          <label for="customEndpointInput">Custom Endpoint URL</label>
+          <input type="text" id="customEndpointInput" placeholder="http://localhost:8000/v1/audio/transcriptions" />
+        </div>
+
+        <!-- Spoken Language -->
+        <div class="form-group">
+          <label for="languageSelect">Audio Language</label>
+          <select id="languageSelect">
+            <option value="">Auto-Detect (Multilingual)</option>
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="it">Italian</option>
+            <option value="pt">Portuguese</option>
+            <option value="ja">Japanese</option>
+            <option value="zh">Chinese</option>
+            <option value="ko">Korean</option>
+            <option value="hi">Hindi</option>
+            <option value="ar">Arabic</option>
+            <option value="ru">Russian</option>
+            <option value="nl">Dutch</option>
+            <option value="pl">Polish</option>
+            <option value="tr">Turkish</option>
+          </select>
+        </div>
+
+        <!-- Chunk Duration -->
+        <div class="form-group">
+          <div class="label-with-value">
+            <label for="chunkDurationRange">Chunk Interval</label>
+            <span id="chunkDurationVal" class="value-badge">3.5s</span>
+          </div>
+          <input type="range" id="chunkDurationRange" min="2.0" max="6.0" step="0.5" value="3.5" />
+          <span class="form-help">Shorter = faster caption updates; Longer = higher lyric context</span>
+        </div>
+
+        <!-- Silence / VAD Sensitivity -->
+        <div class="form-group">
+          <div class="label-with-value">
+            <label for="vadThresholdRange">Silence Filter (VAD)</label>
+            <span id="vadThresholdVal" class="value-badge">Normal</span>
+          </div>
+          <input type="range" id="vadThresholdRange" min="0.002" max="0.02" step="0.002" value="0.008" />
+          <span class="form-help">Skips API calls during song pauses or video silence</span>
+        </div>
+
+        <!-- Save button feedback -->
+        <div class="settings-footer">
+          <button id="saveSettingsBtn" class="btn-save">Save Settings</button>
+          <span id="saveStatus" class="save-status"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Error Toast -->
+    <div id="popupToast" class="popup-toast hidden">
+      <span id="popupToastMessage"></span>
+    </div>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
