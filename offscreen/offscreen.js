@@ -1,10 +1,11 @@
 /**
  * SightScribe - Audio Processor & AI Whisper Client (Offscreen Document)
  * Captures tab audio stream, maintains speaker passthrough, buffers PCM audio,
- * filters silence, and sends audio chunks to Groq or OpenAI Whisper API.
+ * filters silence, eliminates repeated phrases, and sends audio chunks to Whisper API.
  */
 
 import { encodeWAV, downsampleBuffer, calculateRMS, formatTime } from '../utils/audio-helpers.js';
+import { sanitizeTranscriptSegment } from '../utils/text-dedup.js';
 
 let audioCtx = null;
 let mediaStream = null;
@@ -16,7 +17,9 @@ let isCapturing = false;
 let sessionStartTime = 0;
 let chunkStartTime = 0;
 let segmentCounter = 1;
-let promptContext = '';
+
+// Recent emitted segments buffer for cross-chunk deduplication and overlap stripping
+let recentTranscripts = [];
 
 // Active settings
 let currentSettings = {
@@ -33,21 +36,6 @@ let currentSettings = {
 let pcmBuffer = [];
 let accumulatedSampleCount = 0;
 let lastLevelBroadcastTime = 0;
-let isTranscribingNow = false;
-
-// Common hallucination strings to filter out
-const HALLUCINATIONS = new Set([
-  'thank you.',
-  'thank you for watching!',
-  'thank you for watching.',
-  'thanks for watching!',
-  'thanks for watching.',
-  'subtitles by the amara.org community',
-  'subtitles by the amara community',
-  'subscribe to my channel',
-  'please subscribe',
-  'like and subscribe'
-]);
 
 /**
  * Listen for messages from background script
@@ -145,7 +133,7 @@ async function handleStartStream(streamId, settings) {
     sessionStartTime = Date.now();
     chunkStartTime = 0;
     segmentCounter = 1;
-    promptContext = '';
+    recentTranscripts = [];
 
     const targetSamplesPerChunk = Math.round(audioCtx.sampleRate * (currentSettings.chunkDuration || 3.5));
 
@@ -226,8 +214,8 @@ async function processBufferedAudio(expectedSampleCount) {
     offset += chunk.length;
   }
 
-  // Keep an overlap of 0.3s for seamless audio continuity
-  const overlapSampleCount = Math.round(audioCtx.sampleRate * 0.3);
+  // Keep an overlap of 0.25s for seamless boundary continuity
+  const overlapSampleCount = Math.round(audioCtx.sampleRate * 0.25);
   const leftoverSamples = mergedSamples.slice(Math.max(0, totalLength - overlapSampleCount));
 
   // Reset accumulator
@@ -237,7 +225,7 @@ async function processBufferedAudio(expectedSampleCount) {
   const currentChunkStart = chunkStartTime;
   const currentChunkDuration = totalLength / audioCtx.sampleRate;
   const currentChunkEnd = currentChunkStart + currentChunkDuration;
-  chunkStartTime = currentChunkEnd - 0.3; // Next chunk starts after overlap
+  chunkStartTime = currentChunkEnd - 0.25; // Next chunk starts after overlap
 
   // Downsample from native rate (e.g. 48000Hz) to 16000Hz (Whisper optimal)
   const downsampled = downsampleBuffer(mergedSamples, audioCtx.sampleRate, 16000);
@@ -303,10 +291,8 @@ async function transcribeAudioChunk(wavBlob, startSec, endSec) {
       formData.append('language', language.trim());
     }
 
-    // Supply prompt context from previous segment to preserve flow & lyrics
-    if (promptContext) {
-      formData.append('prompt', promptContext);
-    }
+    // NOTE: We deliberately do NOT append raw previous subtitles to the 'prompt' parameter!
+    // Appending previous subtitles as prompt causes Whisper to regurgitate and repeat them verbatim.
 
     const response = await fetch(endpointUrl, {
       method: 'POST',
@@ -330,10 +316,14 @@ async function transcribeAudioChunk(wavBlob, startSec, endSec) {
     }
 
     const result = await response.json();
-    let transcribedText = (result.text || '').trim();
+    const rawTranscribedText = (result.text || '').trim();
 
-    // Check for empty or hallucinated text
-    if (!transcribedText || transcribedText.length < 2) {
+    // Sanitize and deduplicate: filters hallucinations, collapses internal loops,
+    // and strips overlapping boundary words against recent segments
+    const cleanText = sanitizeTranscriptSegment(rawTranscribedText, recentTranscripts);
+
+    // If cleaned text is null (meaning duplicate, repetition loop, or noise), ignore
+    if (!cleanText) {
       chrome.runtime.sendMessage({
         action: 'TRANSCRIPTION_STATE',
         state: 'idle'
@@ -341,20 +331,13 @@ async function transcribeAudioChunk(wavBlob, startSec, endSec) {
       return;
     }
 
-    const normalizedText = transcribedText.toLowerCase().replace(/[.,!?;:]/g, '').trim();
-    if (HALLUCINATIONS.has(normalizedText)) {
-      chrome.runtime.sendMessage({
-        action: 'TRANSCRIPTION_STATE',
-        state: 'idle'
-      });
-      return;
+    // Record in recent history (retain last 4 clean segments)
+    recentTranscripts.unshift(cleanText);
+    if (recentTranscripts.length > 4) {
+      recentTranscripts.pop();
     }
 
-    // Update prompt context with the last 25 words
-    const words = transcribedText.split(/\s+/);
-    promptContext = words.slice(-25).join(' ');
-
-    // Broadcast new caption segment to background and UI
+    // Broadcast non-duplicate, cleaned caption segment to background and UI
     chrome.runtime.sendMessage({
       action: 'NEW_TRANSCRIPT_SEGMENT',
       segment: {
@@ -362,7 +345,7 @@ async function transcribeAudioChunk(wavBlob, startSec, endSec) {
         startSec: Math.max(0, startSec),
         endSec: Math.max(startSec + 0.1, endSec),
         timestamp: formatTime(startSec),
-        text: transcribedText,
+        text: cleanText,
         detectedLanguage: result.language || null
       }
     });
@@ -429,7 +412,7 @@ function handleStopStream() {
 
   pcmBuffer = [];
   accumulatedSampleCount = 0;
-  promptContext = '';
+  recentTranscripts = [];
 
   chrome.runtime.sendMessage({
     action: 'CAPTURE_STATUS',

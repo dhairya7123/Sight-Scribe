@@ -4,6 +4,8 @@
  * side panel coordination, and transcript state distribution.
  */
 
+import { normalizeForComparison } from './utils/text-dedup.js';
+
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen/offscreen.html';
 
 // In-memory state (backed by storage.session where applicable)
@@ -140,7 +142,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // --- Messages coming from Offscreen Document ---
     case 'NEW_TRANSCRIPT_SEGMENT': {
-      if (message.segment) {
+      if (message.segment && message.segment.text) {
+        // Defensive check: Do not store or broadcast if identical to previous segment
+        const last = state.transcripts[state.transcripts.length - 1];
+        if (last && normalizeForComparison(last.text) === normalizeForComparison(message.segment.text)) {
+          break;
+        }
+
         state.transcripts.push(message.segment);
         broadcast('NEW_TRANSCRIPT_SEGMENT', { segment: message.segment });
       }

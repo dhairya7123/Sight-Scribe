@@ -4,6 +4,7 @@
  */
 
 import { exportToSrt, exportToTxt, downloadFile } from '../utils/srt-generator.js';
+import { normalizeForComparison } from '../utils/text-dedup.js';
 
 // DOM Elements
 const statusPill = document.getElementById('statusPill');
@@ -110,7 +111,16 @@ function applyState(state) {
   }
 
   if (Array.isArray(state.transcripts)) {
-    transcripts = [...state.transcripts];
+    const deduped = [];
+    for (const seg of state.transcripts) {
+      if (!seg || !seg.text) continue;
+      const prev = deduped[deduped.length - 1];
+      if (prev && normalizeForComparison(prev.text) === normalizeForComparison(seg.text)) {
+        continue;
+      }
+      deduped.push(seg);
+    }
+    transcripts = deduped;
     renderTranscripts();
   }
 }
@@ -162,7 +172,12 @@ function setupEventListeners() {
   chrome.runtime.onMessage.addListener((message) => {
     switch (message.action) {
       case 'NEW_TRANSCRIPT_SEGMENT':
-        if (message.segment) {
+        if (message.segment && message.segment.text) {
+          const last = transcripts[transcripts.length - 1];
+          if (last && normalizeForComparison(last.text) === normalizeForComparison(message.segment.text)) {
+            // Drop duplicate
+            break;
+          }
           transcripts.push(message.segment);
           appendSegment(message.segment);
           updateSegmentCount();
