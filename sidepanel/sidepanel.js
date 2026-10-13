@@ -1,39 +1,70 @@
 /**
  * SightScribe - Side Panel Application Logic
- * Real-time caption feed, audio visualizer, auto-scrolling, search, and SRT/TXT export.
+ * Real-time caption feed, audio visualizer, auto-scrolling, search, SRT/TXT export,
+ * Screen Narrator, and Text-to-Speech Accessibility Suite.
  */
 
 import { exportToSrt, exportToTxt, downloadFile } from '../utils/srt-generator.js';
 import { normalizeForComparison } from '../utils/text-dedup.js';
 
-// DOM Elements
+// Tabs
+const tabCaptionsBtn = document.getElementById('tabCaptionsBtn');
+const tabNarratorBtn = document.getElementById('tabNarratorBtn');
+const feedContainer = document.getElementById('feedContainer');
+const narratorContainer = document.getElementById('narratorContainer');
+const visualizerWrapper = document.getElementById('visualizerWrapper');
+const captionsToolbar = document.getElementById('captionsToolbar');
+const captionsFooter = document.getElementById('captionsFooter');
+
+// DOM Elements - Header & Status
 const statusPill = document.getElementById('statusPill');
 const statusText = document.getElementById('statusText');
 const activeTabCard = document.getElementById('activeTabCard');
 const tabFavicon = document.getElementById('tabFavicon');
 const tabTitle = document.getElementById('tabTitle');
 const visualizerCanvas = document.getElementById('visualizerCanvas');
+
+// DOM Elements - Captions Tab
 const searchInput = document.getElementById('searchInput');
 const clearSearchBtn = document.getElementById('clearSearchBtn');
 const copyAllBtn = document.getElementById('copyAllBtn');
 const downloadSrtBtn = document.getElementById('downloadSrtBtn');
 const downloadTxtBtn = document.getElementById('downloadTxtBtn');
 const clearTranscriptsBtn = document.getElementById('clearTranscriptsBtn');
-const feedContainer = document.getElementById('feedContainer');
 const emptyState = document.getElementById('emptyState');
 const transcriptsList = document.getElementById('transcriptsList');
 const jumpBottomBtn = document.getElementById('jumpBottomBtn');
-const errorToast = document.getElementById('errorToast');
-const errorMessage = document.getElementById('errorMessage');
-const closeToastBtn = document.getElementById('closeToastBtn');
-const successToast = document.getElementById('successToast');
-const successMessage = document.getElementById('successMessage');
 const providerInfo = document.getElementById('providerInfo');
 const segmentCount = document.getElementById('segmentCount');
 const toggleCaptureBtn = document.getElementById('toggleCaptureBtn');
 const toggleCaptureText = document.getElementById('toggleCaptureText');
 const playIcon = toggleCaptureBtn.querySelector('.play-icon');
 const stopIcon = toggleCaptureBtn.querySelector('.stop-icon');
+
+// DOM Elements - Screen Narrator & TTS Tab
+const narrateScreenBtn = document.getElementById('narrateScreenBtn');
+const readPageTextBtn = document.getElementById('readPageTextBtn');
+const readSelectionBtn = document.getElementById('readSelectionBtn');
+const hoverReaderToggle = document.getElementById('hoverReaderToggle');
+const speechPlayerBox = document.getElementById('speechPlayerBox');
+const playerStatusBadge = document.getElementById('playerStatusBadge');
+const playerStatusText = document.getElementById('playerStatusText');
+const ttsPlayPauseBtn = document.getElementById('ttsPlayPauseBtn');
+const ttsPlayIcon = document.getElementById('ttsPlayIcon');
+const ttsPauseIcon = document.getElementById('ttsPauseIcon');
+const ttsStopBtn = document.getElementById('ttsStopBtn');
+const spokenSourceTag = document.getElementById('spokenSourceTag');
+const spokenTextContent = document.getElementById('spokenTextContent');
+const copySpokenTextBtn = document.getElementById('copySpokenTextBtn');
+const ttsSpeedSelect = document.getElementById('ttsSpeedSelect');
+const ttsVoiceSelect = document.getElementById('ttsVoiceSelect');
+
+// Toasts
+const errorToast = document.getElementById('errorToast');
+const errorMessage = document.getElementById('errorMessage');
+const closeToastBtn = document.getElementById('closeToastBtn');
+const successToast = document.getElementById('successToast');
+const successMessage = document.getElementById('successMessage');
 
 // Visualizer setup
 const canvasCtx = visualizerCanvas.getContext('2d');
@@ -46,15 +77,65 @@ let isCapturing = false;
 let transcripts = [];
 let userScrolledUp = false;
 let searchTerm = '';
+let activeTab = 'captions'; // 'captions' | 'narrator'
+let currentTtsState = {
+  isSpeaking: false,
+  isPaused: false,
+  hoverReaderEnabled: false
+};
 
 // Initialize
 init();
 
 async function init() {
+  setupNavigationTabs();
   setupEventListeners();
+  setupNarratorEventListeners();
   setupVisualizer();
   await loadState();
+  await loadTtsVoicesAndSettings();
   await loadProviderSettings();
+}
+
+/**
+ * Navigation tabs (Live Captions vs Screen Narrator)
+ */
+function setupNavigationTabs() {
+  tabCaptionsBtn.addEventListener('click', () => switchTab('captions'));
+  tabNarratorBtn.addEventListener('click', () => switchTab('narrator'));
+}
+
+function switchTab(target) {
+  activeTab = target;
+  if (target === 'captions') {
+    tabCaptionsBtn.classList.add('active');
+    tabCaptionsBtn.setAttribute('aria-selected', 'true');
+    tabNarratorBtn.classList.remove('active');
+    tabNarratorBtn.setAttribute('aria-selected', 'false');
+
+    feedContainer.classList.remove('hidden');
+    feedContainer.classList.add('active');
+    narratorContainer.classList.add('hidden');
+    narratorContainer.classList.remove('active');
+
+    visualizerWrapper.classList.remove('hidden');
+    captionsToolbar.classList.remove('hidden');
+    captionsFooter.classList.remove('hidden');
+  } else {
+    tabNarratorBtn.classList.add('active');
+    tabNarratorBtn.setAttribute('aria-selected', 'true');
+    tabCaptionsBtn.classList.remove('active');
+    tabCaptionsBtn.setAttribute('aria-selected', 'false');
+
+    narratorContainer.classList.remove('hidden');
+    narratorContainer.classList.add('active');
+    feedContainer.classList.add('hidden');
+    feedContainer.classList.remove('active');
+
+    visualizerWrapper.classList.add('hidden');
+    captionsToolbar.classList.add('hidden');
+    captionsFooter.classList.add('hidden');
+  }
 }
 
 /**
@@ -67,7 +148,16 @@ async function loadState() {
       applyState(state);
     }
   } catch (err) {
-    console.warn('Could not retrieve state:', err);
+    console.warn('Could not retrieve caption state:', err);
+  }
+
+  try {
+    const tts = await chrome.runtime.sendMessage({ action: 'GET_TTS_STATE' });
+    if (tts) {
+      applyTtsState(tts);
+    }
+  } catch (err) {
+    console.warn('Could not retrieve TTS state:', err);
   }
 }
 
@@ -87,7 +177,48 @@ async function loadProviderSettings() {
 }
 
 /**
- * Apply state object to UI
+ * Load voices into dropdown and restore saved TTS settings
+ */
+async function loadTtsVoicesAndSettings() {
+  try {
+    const res = await chrome.runtime.sendMessage({ action: 'GET_TTS_VOICES' });
+    const voices = (res && res.voices) ? res.voices : [];
+
+    // Filter to usable english/standard voices
+    ttsVoiceSelect.innerHTML = '<option value="">Default System Voice</option>';
+    voices.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.voiceName;
+      opt.textContent = `${v.voiceName} (${v.lang || 'standard'})`;
+      ttsVoiceSelect.appendChild(opt);
+    });
+
+    // Restore saved settings
+    const storage = await chrome.storage.local.get('sightscribe_tts_settings');
+    const saved = storage.sightscribe_tts_settings;
+    if (saved) {
+      if (saved.rate) ttsSpeedSelect.value = String(saved.rate);
+      if (saved.voiceName) ttsVoiceSelect.value = saved.voiceName;
+    }
+  } catch (e) {
+    console.warn('Could not load TTS voices:', e);
+  }
+}
+
+/**
+ * Save TTS settings on change
+ */
+async function saveTtsSettings() {
+  const settings = {
+    rate: parseFloat(ttsSpeedSelect.value) || 1.0,
+    pitch: 1.0,
+    voiceName: ttsVoiceSelect.value || ''
+  };
+  await chrome.storage.local.set({ sightscribe_tts_settings: settings });
+}
+
+/**
+ * Apply caption state object to UI
  */
 function applyState(state) {
   isCapturing = state.isCapturing;
@@ -126,7 +257,150 @@ function applyState(state) {
 }
 
 /**
- * Event listeners
+ * Apply TTS state to Narrator UI
+ */
+function applyTtsState(tts) {
+  currentTtsState = tts;
+  hoverReaderToggle.checked = !!tts.hoverReaderEnabled;
+
+  if (tts.isSpeaking) {
+    playerStatusBadge.className = 'player-status-badge speaking';
+    playerStatusText.textContent = tts.isPaused ? 'Speech Paused' : 'Speaking Out Loud';
+    ttsPlayIcon.classList.toggle('hidden', !tts.isPaused);
+    ttsPauseIcon.classList.toggle('hidden', tts.isPaused);
+  } else {
+    playerStatusBadge.className = 'player-status-badge';
+    playerStatusText.textContent = 'Speech Ready';
+    ttsPlayIcon.classList.remove('hidden');
+    ttsPauseIcon.classList.add('hidden');
+  }
+
+  if (tts.currentText && tts.currentText.trim()) {
+    spokenTextContent.textContent = tts.currentText;
+    if (tts.source === 'narration') {
+      spokenSourceTag.textContent = 'Screen Narration';
+    } else if (tts.source === 'page_text') {
+      spokenSourceTag.textContent = 'Page Text';
+    } else if (tts.source === 'selection') {
+      spokenSourceTag.textContent = 'Selected Text';
+    } else if (tts.source === 'hover') {
+      spokenSourceTag.textContent = 'Hover Reader';
+    }
+  }
+}
+
+/**
+ * Event listeners - Screen Narrator & TTS
+ */
+function setupNarratorEventListeners() {
+  // 1. Narrate Screen
+  narrateScreenBtn.addEventListener('click', async () => {
+    try {
+      playerStatusBadge.className = 'player-status-badge speaking';
+      playerStatusText.textContent = 'Analyzing Screen...';
+      spokenSourceTag.textContent = 'Screen Narration';
+      spokenTextContent.textContent = 'Analyzing screen layout, visuals, and headings...';
+
+      const res = await chrome.runtime.sendMessage({ action: 'NARRATE_SCREEN' });
+      if (!res || !res.success) {
+        showError(res?.error || 'Failed to narrate screen.');
+      } else {
+        showSuccess('Narrating screen out loud!');
+      }
+    } catch (err) {
+      showError(err.message || 'Error requesting screen narration.');
+    }
+  });
+
+  // 2. Read Page Text Aloud
+  readPageTextBtn.addEventListener('click', async () => {
+    try {
+      playerStatusBadge.className = 'player-status-badge speaking';
+      playerStatusText.textContent = 'Extracting Text...';
+      spokenSourceTag.textContent = 'Page Text';
+      spokenTextContent.textContent = 'Extracting readable text from active webpage...';
+
+      const res = await chrome.runtime.sendMessage({ action: 'READ_PAGE_TEXT' });
+      if (!res || !res.success) {
+        showError(res?.error || 'Failed to read page text.');
+      } else {
+        showSuccess('Reading screen text out loud!');
+      }
+    } catch (err) {
+      showError(err.message || 'Error extracting webpage text.');
+    }
+  });
+
+  // 3. Read Selection
+  readSelectionBtn.addEventListener('click', async () => {
+    try {
+      const res = await chrome.runtime.sendMessage({ action: 'READ_SELECTION' });
+      if (!res || !res.success) {
+        showError(res?.error || 'No text selected on the page.');
+      } else {
+        showSuccess('Reading selected text!');
+      }
+    } catch (err) {
+      showError(err.message || 'Error reading selected text.');
+    }
+  });
+
+  // 4. Hover Reader Toggle
+  hoverReaderToggle.addEventListener('change', async (e) => {
+    try {
+      const res = await chrome.runtime.sendMessage({
+        action: 'TOGGLE_HOVER_READER',
+        enabled: e.target.checked
+      });
+      if (res && res.success) {
+        showSuccess(res.enabled ? 'Screen Reader Hover mode activated' : 'Screen Reader Hover mode stopped');
+      }
+    } catch (err) {
+      showError(err.message || 'Could not toggle hover reader.');
+      e.target.checked = !e.target.checked;
+    }
+  });
+
+  // 5. Play / Pause
+  ttsPlayPauseBtn.addEventListener('click', async () => {
+    if (currentTtsState.isSpeaking && !currentTtsState.isPaused) {
+      await chrome.runtime.sendMessage({ action: 'TTS_PAUSE' });
+    } else if (currentTtsState.isPaused) {
+      await chrome.runtime.sendMessage({ action: 'TTS_RESUME' });
+    } else {
+      // Re-read current text
+      const text = spokenTextContent.textContent.trim();
+      if (text && text.length > 5) {
+        await chrome.runtime.sendMessage({ action: 'TTS_PLAY_TEXT', text, source: 'manual' });
+      }
+    }
+  });
+
+  // 6. Stop TTS
+  ttsStopBtn.addEventListener('click', async () => {
+    await chrome.runtime.sendMessage({ action: 'TTS_STOP' });
+    showSuccess('Speech stopped');
+  });
+
+  // 7. Copy Spoken Text
+  copySpokenTextBtn.addEventListener('click', async () => {
+    const text = spokenTextContent.textContent.trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      showSuccess('Spoken text copied to clipboard!');
+    } catch (e) {
+      showError('Failed to copy text.');
+    }
+  });
+
+  // 8. Settings change
+  ttsSpeedSelect.addEventListener('change', saveTtsSettings);
+  ttsVoiceSelect.addEventListener('change', saveTtsSettings);
+}
+
+/**
+ * Event listeners - Captions
  */
 function setupEventListeners() {
   // Capture toggle
@@ -175,7 +449,6 @@ function setupEventListeners() {
         if (message.segment && message.segment.text) {
           const last = transcripts[transcripts.length - 1];
           if (last && normalizeForComparison(last.text) === normalizeForComparison(message.segment.text)) {
-            // Drop duplicate
             break;
           }
           transcripts.push(message.segment);
@@ -219,6 +492,30 @@ function setupEventListeners() {
 
       case 'CAPTURE_ERROR':
         showError(message.error || 'An error occurred during audio capture.');
+        break;
+
+      // TTS and Narrator broadcasts
+      case 'TTS_STATE_CHANGED':
+        if (message.ttsState) {
+          applyTtsState(message.ttsState);
+        }
+        break;
+
+      case 'NARRATION_STATUS':
+        if (message.status === 'analyzing') {
+          playerStatusBadge.className = 'player-status-badge speaking';
+          playerStatusText.textContent = 'Analyzing Screen...';
+        } else if (message.status === 'ready' && message.narration) {
+          spokenSourceTag.textContent = message.source === 'ai_vision' ? 'AI Vision Narration' : 'DOM Screen Narration';
+          spokenTextContent.textContent = message.narration;
+        }
+        break;
+
+      case 'PAGE_TEXT_READY':
+        if (message.text) {
+          spokenSourceTag.textContent = 'Page Text';
+          spokenTextContent.textContent = message.text;
+        }
         break;
     }
   });
@@ -340,7 +637,6 @@ function createCaptionCard(segment, isLatest) {
 
   let displayText = segment.text;
   if (searchTerm) {
-    // Highlight matching query
     const regex = new RegExp(`(${escapeRegex(searchTerm)})`, 'gi');
     displayText = displayText.replace(regex, '<mark style="background: rgba(245, 158, 11, 0.4); color: white; border-radius: 2px; padding: 0 2px;">$1</mark>');
   }
@@ -360,7 +656,6 @@ function createCaptionCard(segment, isLatest) {
     <div class="caption-text">${displayText}</div>
   `;
 
-  // Single card copy handler
   const copyBtn = card.querySelector('.copy-seg-btn');
   copyBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(segment.text).then(() => {
@@ -477,7 +772,6 @@ function setupVisualizer() {
   const barGap = 4;
 
   function renderVisualizer() {
-    // Smooth interpolation towards target energy
     visualizerEnergy += (visualizerTargetEnergy - visualizerEnergy) * 0.25;
 
     const width = visualizerCanvas.width;
@@ -487,7 +781,6 @@ function setupVisualizer() {
     const activeEnergy = isCapturing ? visualizerEnergy : 0.05;
 
     for (let i = 0; i < barCount; i++) {
-      // Simulate realistic frequency curve
       const progress = i / barCount;
       const wave = Math.sin(Date.now() * 0.005 + i * 0.4) * 0.3 + 0.7;
       const barHeight = Math.max(3, activeEnergy * height * wave * (1 - Math.abs(progress - 0.5) * 0.4));
@@ -495,7 +788,6 @@ function setupVisualizer() {
       const x = i * (barWidth + barGap) + 4;
       const y = height - barHeight;
 
-      // Color gradient from Indigo to Cyan
       const grad = canvasCtx.createLinearGradient(0, height, 0, 0);
       if (isCapturing && activeEnergy > 0.1) {
         grad.addColorStop(0, '#4f46e5');

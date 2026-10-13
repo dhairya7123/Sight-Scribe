@@ -18,7 +18,7 @@
         </div>
         <div>
           <h1>SightScribe</h1>
-          <p class="subtitle">Live Tab Audio & Video Captions</p>
+          <p class="subtitle">Live Captions & Screen Narrator</p>
         </div>
       </div>
       <div id="statusBadge" class="status-badge idle">
@@ -27,7 +27,7 @@
       </div>
     </header>
 
-    <!-- Main Control Section -->
+    <!-- Main Control Section (Live Tab Captions) -->
     <section class="main-controls">
       <!-- Big Toggle Button -->
       <button id="toggleBtn" class="btn-toggle start">
@@ -65,6 +65,50 @@
           <span id="popupTabTitle" class="notice-tab-name">Tab Title</span>
         </div>
       </div>
+    </section>
+
+    <!-- Accessibility Tools Section (Screen Narrator & TTS) -->
+    <section class="accessibility-section">
+      <div class="access-header">
+        <span class="access-title">Accessibility Tools</span>
+        <span class="access-badge">Voice</span>
+      </div>
+
+      <div class="access-btn-row">
+        <button id="popupNarrateBtn" class="btn-access primary" title="Narrate visual screen layout out loud">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M2 12s4-8 10-8 10 8 10 8-4 8-10 8-10-8-10-8z"></path>
+          </svg>
+          <span>Narrate Screen</span>
+        </button>
+
+        <button id="popupReadPageBtn" class="btn-access" title="Read text on screen out loud">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+          <span>Read Text</span>
+        </button>
+      </div>
+
+      <div class="access-toggle-row">
+        <div class="toggle-text-col">
+          <span class="toggle-title">Hover-To-Read Screen Reader</span>
+          <span class="toggle-sub">Speak elements on hover/tab</span>
+        </div>
+        <label class="popup-switch">
+          <input type="checkbox" id="popupHoverToggle">
+          <span class="popup-slider"></span>
+        </label>
+      </div>
+
+      <button id="popupStopVoiceBtn" class="btn-stop-voice hidden" title="Stop current speech">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+        </svg>
+        <span>Stop Voice</span>
+      </button>
     </section>
 
     <!-- Settings Accordion / Form -->

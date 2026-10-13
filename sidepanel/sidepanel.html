@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SightScribe - Live Transcripts</title>
+  <title>SightScribe - Live Transcripts & Screen Narrator</title>
   <link rel="stylesheet" href="sidepanel.css">
 </head>
 <body>
@@ -19,7 +19,7 @@
           </div>
           <div class="brand-text">
             <h1>SightScribe</h1>
-            <span class="brand-sub">Live Captions & Audio Transcriber</span>
+            <span class="brand-sub">Live Captions & Screen Narrator</span>
           </div>
         </div>
 
@@ -30,7 +30,25 @@
         </div>
       </div>
 
-      <!-- Active Tab Card (Shown when listening) -->
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs" role="tablist">
+        <button id="tabCaptionsBtn" class="tab-btn active" role="tab" aria-selected="true">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v20M17 5v14M22 9v6M7 7v10M2 11v2"/>
+          </svg>
+          <span>Live Captions</span>
+        </button>
+        <button id="tabNarratorBtn" class="tab-btn" role="tab" aria-selected="false">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M2 12s4-8 10-8 10 8 10 8-4 8-10 8-10-8-10-8z"></path>
+          </svg>
+          <span>Screen Narrator</span>
+          <span class="badge-pill">Accessibility</span>
+        </button>
+      </nav>
+
+      <!-- Active Tab Card (Shown when listening to audio) -->
       <div id="activeTabCard" class="active-tab-card hidden">
         <div class="tab-info">
           <img id="tabFavicon" class="tab-favicon" src="" alt="">
@@ -45,13 +63,13 @@
         </div>
       </div>
 
-      <!-- Live Visualizer Canvas -->
-      <div class="visualizer-wrapper">
+      <!-- Live Visualizer Canvas (For Live Captions) -->
+      <div id="visualizerWrapper" class="visualizer-wrapper">
         <canvas id="visualizerCanvas" width="360" height="24"></canvas>
       </div>
 
-      <!-- Action & Search Toolbar -->
-      <div class="toolbar">
+      <!-- Action & Search Toolbar (Captions Tab) -->
+      <div id="captionsToolbar" class="toolbar">
         <div class="search-box">
           <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8"></circle>
@@ -84,8 +102,8 @@
       </div>
     </header>
 
-    <!-- Main Live Captions Feed -->
-    <main class="feed-container" id="feedContainer">
+    <!-- TAB 1: Live Captions Feed -->
+    <main class="feed-container tab-content active" id="feedContainer">
       <!-- Empty State View -->
       <div id="emptyState" class="empty-state">
         <div class="empty-icon-wrap">
@@ -126,6 +144,125 @@
       </button>
     </main>
 
+    <!-- TAB 2: Screen Reader & Narrator -->
+    <main class="narrator-container tab-content hidden" id="narratorContainer">
+      <!-- Quick Action Buttons Grid -->
+      <div class="accessibility-actions-grid">
+        <button id="narrateScreenBtn" class="action-card-btn primary-action">
+          <div class="card-btn-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M2 12s4-8 10-8 10 8 10 8-4 8-10 8-10-8-10-8z"></path>
+            </svg>
+          </div>
+          <div class="card-btn-content">
+            <span class="card-btn-title">Narrate Screen</span>
+            <span class="card-btn-desc">Describes visual layout, headings & media for visually challenged (Alt+Shift+N)</span>
+          </div>
+        </button>
+
+        <button id="readPageTextBtn" class="action-card-btn secondary-action">
+          <div class="card-btn-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
+          </div>
+          <div class="card-btn-content">
+            <span class="card-btn-title">Read Screen Text Aloud</span>
+            <span class="card-btn-desc">Speaks full article & screen text aloud (Alt+Shift+R)</span>
+          </div>
+        </button>
+
+        <button id="readSelectionBtn" class="action-card-btn secondary-action">
+          <div class="card-btn-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 7V4h16v3M9 20h6M12 4v16"></path>
+            </svg>
+          </div>
+          <div class="card-btn-content">
+            <span class="card-btn-title">Read Selected Text</span>
+            <span class="card-btn-desc">Speaks highlighted text or right-click selection</span>
+          </div>
+        </button>
+
+        <!-- Interactive Screen Reader Hover Mode -->
+        <div class="hover-reader-toggle-card">
+          <div class="hover-reader-info">
+            <span class="card-btn-title">Hover-To-Read Screen Reader</span>
+            <span class="card-btn-desc">Hover or Tab over any element on the page to hear it spoken with accessibility focus</span>
+          </div>
+          <label class="switch-label">
+            <input type="checkbox" id="hoverReaderToggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Spoken Audio Player Box -->
+      <div class="speech-player-box" id="speechPlayerBox">
+        <div class="player-header">
+          <div class="player-status-badge" id="playerStatusBadge">
+            <span class="pulse-indicator"></span>
+            <span id="playerStatusText">Speech Ready</span>
+          </div>
+          <div class="player-controls">
+            <button id="ttsPlayPauseBtn" class="player-btn" title="Pause / Resume">
+              <svg id="ttsPauseIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="4" width="4" height="16"></rect>
+                <rect x="14" y="4" width="4" height="16"></rect>
+              </svg>
+              <svg id="ttsPlayIcon" class="hidden" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+            </button>
+            <button id="ttsStopBtn" class="player-btn danger" title="Stop Speech (Alt+Shift+S)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Narration / Spoken Text Display -->
+        <div class="spoken-text-card">
+          <div class="spoken-text-toolbar">
+            <span class="text-source-tag" id="spokenSourceTag">Narration Output</span>
+            <button id="copySpokenTextBtn" class="card-action-btn" title="Copy text">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span>Copy</span>
+            </button>
+          </div>
+          <div class="spoken-text-content" id="spokenTextContent">
+            Click "Narrate Screen" or "Read Screen Text Aloud" above to hear what is currently on screen.
+          </div>
+        </div>
+
+        <!-- Voice Settings Drawer -->
+        <div class="tts-settings-row">
+          <div class="tts-setting-item">
+            <label for="ttsSpeedSelect">Speech Speed</label>
+            <select id="ttsSpeedSelect">
+              <option value="0.75">0.75x (Slower)</option>
+              <option value="1.0" selected>1.0x (Normal)</option>
+              <option value="1.25">1.25x (Fast)</option>
+              <option value="1.5">1.5x (Faster)</option>
+              <option value="2.0">2.0x (Double)</option>
+            </select>
+          </div>
+          <div class="tts-setting-item">
+            <label for="ttsVoiceSelect">Spoken Voice</label>
+            <select id="ttsVoiceSelect">
+              <option value="">Default System Voice</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </main>
+
     <!-- Error Toast Notification -->
     <div id="errorToast" class="toast-error hidden">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -145,8 +282,8 @@
       <span id="successMessage" class="toast-text"></span>
     </div>
 
-    <!-- Bottom Action Footer -->
-    <footer class="panel-footer">
+    <!-- Bottom Action Footer (Captions Tab) -->
+    <footer id="captionsFooter" class="panel-footer">
       <div class="footer-info">
         <span id="providerInfo" class="provider-tag">Engine: Groq Whisper</span>
         <span id="segmentCount" class="segment-counter">0 captions</span>
@@ -168,6 +305,6 @@
     </footer>
   </div>
 
-  <script type="module" src="sidepanel.js"></script>
+  <script type=\"module\" src=\"sidepanel.js\"></script>
 </body>
 </html>

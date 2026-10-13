@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "SightScribe - Live Audio & Video Captions",
-  "version": "1.0.0",
-  "description": "Hear audio from songs and videos playing in any browser tab and generate real-time AI captions and transcripts.",
+  "name": "SightScribe - Live Audio & Video Captions & Screen Narrator",
+  "version": "1.1.0",
+  "description": "Hear audio from songs and videos playing in any browser tab, generate real-time AI captions, and narrate/read the screen aloud for visually challenged users.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -14,7 +14,10 @@
     "activeTab",
     "storage",
     "offscreen",
-    "sidePanel"
+    "sidePanel",
+    "tts",
+    "contextMenus",
+    "scripting"
   ],
   "host_permissions": [
     "https://api.groq.com/*",
@@ -24,7 +27,7 @@
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "SightScribe - Live Captions",
+    "default_title": "SightScribe - Captions & Screen Narrator",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -38,5 +41,33 @@
   "background": {
     "service_worker": "background.js",
     "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content/content-script.js"],
+      "css": ["content/content-script.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "narrate_screen": {
+      "suggested_key": {
+        "default": "Alt+Shift+N"
+      },
+      "description": "Narrate the current screen for visually challenged"
+    },
+    "read_page_text": {
+      "suggested_key": {
+        "default": "Alt+Shift+R"
+      },
+      "description": "Read screen text out loud"
+    },
+    "stop_reading": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Stop current speech narration"
+    }
   }
 }

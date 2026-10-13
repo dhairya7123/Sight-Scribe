@@ -1,9 +1,10 @@
 /**
  * SightScribe - Popup Application Logic
- * Quick start/stop toggle, side panel opener, and AI engine configuration.
+ * Quick start/stop toggle, side panel opener, AI engine configuration,
+ * and Accessibility Screen Narrator & Voice tools.
  */
 
-// DOM Elements
+// DOM Elements - Captions
 const toggleBtn = document.getElementById('toggleBtn');
 const toggleBtnText = document.getElementById('toggleBtnText');
 const toggleBtnSub = document.getElementById('toggleBtnSub');
@@ -16,6 +17,13 @@ const activeTabNotice = document.getElementById('activeTabNotice');
 const popupFavicon = document.getElementById('popupFavicon');
 const popupTabTitle = document.getElementById('popupTabTitle');
 
+// DOM Elements - Accessibility
+const popupNarrateBtn = document.getElementById('popupNarrateBtn');
+const popupReadPageBtn = document.getElementById('popupReadPageBtn');
+const popupHoverToggle = document.getElementById('popupHoverToggle');
+const popupStopVoiceBtn = document.getElementById('popupStopVoiceBtn');
+
+// DOM Elements - Settings
 const toggleSettingsBtn = document.getElementById('toggleSettingsBtn');
 const settingsChevron = document.getElementById('settingsChevron');
 const settingsBody = document.getElementById('settingsBody');
@@ -47,8 +55,10 @@ init();
 
 async function init() {
   setupEventListeners();
+  setupAccessibilityListeners();
   await loadSavedSettings();
   await loadState();
+  await loadTtsState();
 }
 
 /**
@@ -97,8 +107,90 @@ function setupEventListeners() {
       applyState(message.state);
     } else if (message.action === 'CAPTURE_ERROR') {
       showToast(message.error || 'Audio capture failed');
+    } else if (message.action === 'TTS_STATE_CHANGED' && message.ttsState) {
+      applyTtsState(message.ttsState);
     }
   });
+}
+
+/**
+ * Accessibility Event Listeners
+ */
+function setupAccessibilityListeners() {
+  // Narrate Screen
+  popupNarrateBtn.addEventListener('click', async () => {
+    try {
+      popupNarrateBtn.disabled = true;
+      showToast('Analyzing screen layout & narrating...');
+      const res = await chrome.runtime.sendMessage({ action: 'NARRATE_SCREEN' });
+      if (!res || !res.success) {
+        showToast(res?.error || 'Failed to narrate screen');
+      }
+    } catch (err) {
+      showToast(err.message || 'Error narrating screen');
+    } finally {
+      popupNarrateBtn.disabled = false;
+    }
+  });
+
+  // Read Screen Text
+  popupReadPageBtn.addEventListener('click', async () => {
+    try {
+      popupReadPageBtn.disabled = true;
+      showToast('Reading screen text aloud...');
+      const res = await chrome.runtime.sendMessage({ action: 'READ_PAGE_TEXT' });
+      if (!res || !res.success) {
+        showToast(res?.error || 'Failed to read screen text');
+      }
+    } catch (err) {
+      showToast(err.message || 'Error reading text');
+    } finally {
+      popupReadPageBtn.disabled = false;
+    }
+  });
+
+  // Hover Reader Toggle
+  popupHoverToggle.addEventListener('change', async (e) => {
+    try {
+      const res = await chrome.runtime.sendMessage({
+        action: 'TOGGLE_HOVER_READER',
+        enabled: e.target.checked
+      });
+      if (res && res.success) {
+        showToast(res.enabled ? 'Screen reader mode active on page' : 'Screen reader stopped');
+      }
+    } catch (err) {
+      showToast(err.message || 'Could not toggle hover reader');
+      e.target.checked = !e.target.checked;
+    }
+  });
+
+  // Stop Voice
+  popupStopVoiceBtn.addEventListener('click', async () => {
+    await chrome.runtime.sendMessage({ action: 'TTS_STOP' });
+    popupStopVoiceBtn.classList.add('hidden');
+  });
+}
+
+/**
+ * Load TTS state
+ */
+async function loadTtsState() {
+  try {
+    const tts = await chrome.runtime.sendMessage({ action: 'GET_TTS_STATE' });
+    if (tts) {
+      applyTtsState(tts);
+    }
+  } catch (e) {}
+}
+
+function applyTtsState(tts) {
+  popupHoverToggle.checked = !!tts.hoverReaderEnabled;
+  if (tts.isSpeaking) {
+    popupStopVoiceBtn.classList.remove('hidden');
+  } else {
+    popupStopVoiceBtn.classList.add('hidden');
+  }
 }
 
 /**
@@ -196,7 +288,6 @@ async function handleToggleCapture() {
       const apiKey = apiKeyInput.value.trim();
       if (!apiKey) {
         showToast('Please enter your API Key below before starting.');
-        // Expand settings drawer if closed
         settingsBody.classList.remove('hidden');
         settingsChevron.classList.add('rotated');
         apiKeyInput.focus();
@@ -204,7 +295,6 @@ async function handleToggleCapture() {
         return;
       }
 
-      // Auto save if user typed key without saving
       await handleSaveSettings(false);
 
       const res = await chrome.runtime.sendMessage({ action: 'START_CAPTURE' });
@@ -349,7 +439,6 @@ async function handleSaveSettings(showFeedback = true) {
   currentSettings = newSettings;
   await chrome.storage.local.set({ sightscribe_settings: newSettings });
 
-  // Notify background/offscreen
   chrome.runtime.sendMessage({
     target: 'offscreen',
     action: 'UPDATE_SETTINGS',
