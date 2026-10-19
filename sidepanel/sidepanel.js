@@ -143,7 +143,7 @@ function updateScreenReaderBtn(isReading) {
       screenReaderToolBtn.style.color = '#38bdf8';
     } else {
       screenReaderToolBtn.classList.remove('active');
-      screenReaderToolBtn.title = 'Read Active Tab Out Loud (Alt+Shift+R)';
+      screenReaderToolBtn.title = 'Read Visible Screen (Alt+Shift+R)';
       screenReaderToolBtn.style.color = '';
     }
   }
@@ -164,7 +164,7 @@ function setupEventListeners() {
         if (res && res.error) {
           showError(res.error);
         } else if (res && res.active) {
-          showSuccess('Reading tab out loud (Alt+Shift+R to stop)');
+          showSuccess('Reading visible screen (Alt+Shift+R to stop)');
         } else {
           showSuccess('Screen reader stopped');
         }

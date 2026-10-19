@@ -2,7 +2,7 @@
  * SightScribe - Background Service Worker (Manifest V3)
  * Manages audio capture lifecycle, offscreen document orchestration,
  * side panel coordination, transcript state distribution, and
- * tab content Screen Reader with keyboard shortcuts.
+ * visible screen reader with keyboard shortcuts.
  */
 
 import { normalizeForComparison } from './utils/text-dedup.js';
@@ -163,7 +163,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // --- Screen Reader Controls ---
     case 'TOGGLE_SCREEN_READER': {
-      handleToggleScreenReader(message.tabId)
+      const tabId = message.tabId || (sender && sender.tab ? sender.tab.id : null);
+      handleToggleScreenReader(tabId)
         .then((res) => sendResponse(res))
         .catch((err) => sendResponse({ active: false, error: err.message }));
       return true;
@@ -344,15 +345,23 @@ async function handleToggleScreenReader(targetTabId = null) {
 }
 
 /**
- * Starts reading the active browser tab out loud
+ * Starts reading only what is currently visible on the active browser tab
  */
 async function handleStartScreenReader(explicitTabId = null) {
-  let targetTab;
+  let targetTab = null;
   if (explicitTabId) {
     targetTab = await chrome.tabs.get(explicitTabId).catch(() => null);
   }
   if (!targetTab) {
+    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    targetTab = tabs[0];
+  }
+  if (!targetTab) {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    targetTab = tabs[0];
+  }
+  if (!targetTab) {
+    const tabs = await chrome.tabs.query({ active: true });
     targetTab = tabs[0];
   }
 
@@ -369,7 +378,7 @@ async function handleStartScreenReader(explicitTabId = null) {
     targetTab.url.startsWith('about:') ||
     targetTab.url.startsWith('view-source:')
   )) {
-    speakOneOffNotice('Cannot read internal browser pages. Please navigate to any webpage to use the screen reader.');
+    speakOneOffNotice('Cannot read internal browser pages. Please open any webpage.');
     return { active: false, error: 'Restricted page' };
   }
 
@@ -378,46 +387,66 @@ async function handleStartScreenReader(explicitTabId = null) {
     chrome.tts.stop();
   } catch (e) {}
 
-  // Extract visible content from active tab
+  // 1. Try sending message to in-page content script first
   let extracted = null;
   try {
-    const injectionResults = await chrome.scripting.executeScript({
-      target: { tabId: targetTab.id },
-      func: inPageExtractContents
+    extracted = await new Promise((resolve) => {
+      chrome.tabs.sendMessage(targetTab.id, { action: 'EXTRACT_VISIBLE_TEXT' }, (response) => {
+        if (chrome.runtime.lastError || !response) {
+          resolve(null);
+        } else {
+          resolve(response);
+        }
+      });
     });
-    if (injectionResults && injectionResults[0] && injectionResults[0].result) {
-      extracted = injectionResults[0].result;
+  } catch (e) {
+    extracted = null;
+  }
+
+  // 2. If content script was not connected yet, execute script as fallback
+  if (!extracted) {
+    try {
+      const injectionResults = await chrome.scripting.executeScript({
+        target: { tabId: targetTab.id },
+        func: inPageExtractContents
+      });
+      if (injectionResults && injectionResults[0] && injectionResults[0].result) {
+        extracted = injectionResults[0].result;
+      }
+    } catch (err) {
+      console.warn('Script execution fallback error:', err);
+      speakOneOffNotice('Cannot access page content. Please refresh the page and try again.');
+      return { active: false, error: err.message };
     }
-  } catch (err) {
-    console.warn('Script execution error:', err);
-    speakOneOffNotice('Cannot access page content. Please refresh the page and try again.');
-    return { active: false, error: err.message };
   }
 
-  if (!extracted || (!extracted.text && !extracted.title)) {
-    speakOneOffNotice('No readable text found on this tab.');
-    return { active: false, error: 'No text' };
+  if (!extracted || !extracted.text || !extracted.text.trim()) {
+    speakOneOffNotice('No readable content currently visible on screen. Scroll to view more.');
+    return { active: false, error: 'No visible text' };
   }
 
-  // Build utterance queue
-  const titleIntro = `Reading webpage: ${extracted.title || 'Untitled'}.`;
+  // Build utterance queue from visible text only
   const contentChunks = splitTextIntoChunks(extracted.text);
-
-  ttsQueue = [titleIntro, ...contentChunks];
+  ttsQueue = contentChunks;
   ttsQueueIndex = 0;
 
   screenReaderState.isReading = true;
   screenReaderState.tabId = targetTab.id;
-  screenReaderState.title = extracted.title || 'Webpage';
+  screenReaderState.title = extracted.title || 'Screen View';
   screenReaderState.totalChunks = ttsQueue.length;
   screenReaderState.currentChunkIndex = 0;
 
   // Show floating indicator on tab
-  chrome.scripting.executeScript({
-    target: { tabId: targetTab.id },
-    func: inPageShowBanner,
-    args: ['🔊 SightScribe: Reading tab... (Alt+Shift+R to stop)']
-  }).catch(() => {});
+  chrome.tabs.sendMessage(targetTab.id, {
+    action: 'SHOW_READER_BANNER',
+    text: '🔊 SightScribe: Reading visible screen... (Alt+Shift+R or Esc to stop)'
+  }).catch(() => {
+    chrome.scripting.executeScript({
+      target: { tabId: targetTab.id },
+      func: inPageShowBanner,
+      args: ['🔊 SightScribe: Reading visible screen... (Alt+Shift+R or Esc to stop)']
+    }).catch(() => {});
+  });
 
   updateBadge(state.isCapturing);
   broadcast('SCREEN_READER_STATE_CHANGED', { state: { ...screenReaderState } });
@@ -439,10 +468,12 @@ async function handleStopScreenReader() {
   } catch (e) {}
 
   if (screenReaderState.tabId) {
-    chrome.scripting.executeScript({
-      target: { tabId: screenReaderState.tabId },
-      func: inPageHideBanner
-    }).catch(() => {});
+    chrome.tabs.sendMessage(screenReaderState.tabId, { action: 'HIDE_READER_BANNER' }).catch(() => {
+      chrome.scripting.executeScript({
+        target: { tabId: screenReaderState.tabId },
+        func: inPageHideBanner
+      }).catch(() => {});
+    });
   }
 
   screenReaderState.tabId = null;

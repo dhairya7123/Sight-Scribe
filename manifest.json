@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SightScribe - Live Captions & Screen Reader",
-  "version": "1.1.0",
-  "description": "Hear audio from songs and videos playing in any browser tab to generate real-time AI captions, or read the entire screen tab out loud.",
+  "version": "1.1.1",
+  "description": "Hear audio from songs and videos playing in any browser tab to generate real-time AI captions, or read the visible screen out loud.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -23,6 +23,13 @@
     "https://api.openai.com/*",
     "http://*/*",
     "https://*/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content/content-script.js"],
+      "run_at": "document_start"
+    }
   ],
   "action": {
     "default_popup": "popup/popup.html",
@@ -47,7 +54,7 @@
         "default": "Alt+Shift+R",
         "mac": "Alt+Shift+R"
       },
-      "description": "Read browser tab out loud (Screen Reader)"
+      "description": "Read visible screen content out loud"
     },
     "stop_screen_reader": {
       "suggested_key": {

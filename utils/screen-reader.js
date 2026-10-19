@@ -1,6 +1,6 @@
 /**
  * SightScribe - Screen Reader Module
- * Extracts browser tab content, chunks sentences for reliable Chrome TTS,
+ * Extracts visible browser tab content, chunks sentences for reliable Chrome TTS,
  * and manages spoken playback without interfering with captioning.
  */
 
@@ -11,7 +11,6 @@
 export function splitTextIntoChunks(text, maxLen = 200) {
   if (!text) return [];
 
-  // Match sentences ending with punctuation or newlines
   const sentences = text.match(/[^.!?\n]+[.!?\n]+|[^.!?\n]+$/g) || [text];
   const chunks = [];
   let current = '';
@@ -21,7 +20,6 @@ export function splitTextIntoChunks(text, maxLen = 200) {
     if (!trimmed) continue;
 
     if (trimmed.length > maxLen) {
-      // Split overly long sentence by words
       const words = trimmed.split(' ');
       for (const w of words) {
         if ((current + ' ' + w).trim().length > maxLen) {
@@ -46,44 +44,35 @@ export function splitTextIntoChunks(text, maxLen = 200) {
 }
 
 /**
- * In-page function injected into the target tab to extract visible content.
+ * In-page function injected into the target tab to extract ONLY content
+ * currently visible in the user's viewport.
  * Must be self-contained so it can be passed to chrome.scripting.executeScript.
  */
 export function inPageExtractContents() {
-  const pageTitle = document.title || 'Untitled Webpage';
+  const windowHeight = window.innerHeight || document.documentElement.clientHeight;
+  const windowWidth = window.innerWidth || document.documentElement.clientWidth;
 
-  // Check if page has no body (e.g. XML or PDF viewer)
   if (!document.body) {
-    return { title: pageTitle, text: '' };
+    return { title: document.title || 'Untitled', text: '' };
   }
 
-  // Tags that definitely do not represent readable article/page text
   const excludedTags = new Set([
     'SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG', 'CANVAS',
     'NAV', 'FOOTER', 'IFRAME', 'OBJECT', 'EMBED'
   ]);
 
-  // Find candidate main content container if available
-  const mainCandidate = document.querySelector('main, [role="main"], article, #content, .content, #main, .post-content');
-  const root = mainCandidate || document.body;
-
   const walker = document.createTreeWalker(
-    root,
+    document.body || document.documentElement,
     NodeFilter.SHOW_TEXT,
     {
       acceptNode(node) {
         const parent = node.parentElement;
         if (!parent) return NodeFilter.FILTER_REJECT;
 
-        if (excludedTags.has(parent.tagName.toUpperCase())) {
-          return NodeFilter.FILTER_REJECT;
-        }
+        const tag = parent.tagName.toUpperCase();
+        if (excludedTags.has(tag)) return NodeFilter.FILTER_REJECT;
+        if (parent.getAttribute('aria-hidden') === 'true') return NodeFilter.FILTER_REJECT;
 
-        if (parent.getAttribute('aria-hidden') === 'true') {
-          return NodeFilter.FILTER_REJECT;
-        }
-
-        // Avoid reading invisible elements
         const style = window.getComputedStyle(parent);
         if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) {
           return NodeFilter.FILTER_REJECT;
@@ -97,23 +86,69 @@ export function inPageExtractContents() {
     }
   );
 
-  const textSnippets = [];
+  const range = document.createRange();
+  const visibleSnippets = [];
   let node;
+
   while ((node = walker.nextNode())) {
-    const val = node.textContent.trim();
-    if (val) textSnippets.push(val);
+    try {
+      range.selectNodeContents(node);
+      const rect = range.getBoundingClientRect();
+
+      // Check if text node physically overlaps the visible viewport
+      const isInView = (
+        rect.bottom > 5 &&
+        rect.top < (windowHeight - 5) &&
+        rect.right > 0 &&
+        rect.left < windowWidth &&
+        rect.width > 0 &&
+        rect.height > 0
+      );
+
+      if (isInView) {
+        const text = node.textContent.trim();
+        if (text) {
+          visibleSnippets.push(text);
+        }
+      }
+    } catch (err) {
+      // Continue if node disconnected
+    }
   }
 
-  let fullText = textSnippets.join(' ').replace(/\s+/g, ' ').trim();
+  const cleanSnippets = [];
+  for (const snippet of visibleSnippets) {
+    if (cleanSnippets.length === 0 || cleanSnippets[cleanSnippets.length - 1] !== snippet) {
+      cleanSnippets.push(snippet);
+    }
+  }
 
-  // If tree walking yielded very little, fallback to innerText
-  if (fullText.length < 50 && document.body.innerText) {
-    fullText = document.body.innerText.replace(/\s+/g, ' ').trim();
+  let fullVisibleText = cleanSnippets.join(' ').replace(/\s+/g, ' ').trim();
+
+  // Check for visible images with alt text in viewport
+  const images = document.querySelectorAll('img[alt]');
+  const visibleAlts = [];
+  for (const img of images) {
+    const alt = img.getAttribute('alt')?.trim();
+    if (!alt || alt.length < 3) continue;
+    const r = img.getBoundingClientRect();
+    if (r.bottom > 5 && r.top < (windowHeight - 5) && r.right > 0 && r.left < windowWidth && r.width > 25 && r.height > 25) {
+      visibleAlts.push(`Image: ${alt}`);
+    }
+  }
+
+  if (visibleAlts.length > 0) {
+    if (fullVisibleText) {
+      fullVisibleText += '. ' + visibleAlts.join('. ');
+    } else {
+      fullVisibleText = visibleAlts.join('. ');
+    }
   }
 
   return {
-    title: pageTitle,
-    text: fullText
+    title: document.title || 'Current View',
+    text: fullVisibleText,
+    count: cleanSnippets.length
   };
 }
 
@@ -133,7 +168,7 @@ export function inPageShowBanner(message) {
       'background: #0f172a !important',
       'color: #38bdf8 !important',
       'border: 2px solid #38bdf8 !important',
-      'box-shadow: 0 4px 16px rgba(0,0,0,0.5) !important',
+      'box-shadow: 0 4px 16px rgba(0,0,0,0.6) !important',
       'padding: 8px 14px !important',
       'border-radius: 8px !important',
       'font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important',
@@ -144,11 +179,11 @@ export function inPageShowBanner(message) {
       'gap: 8px !important',
       'pointer-events: none !important',
       'user-select: none !important',
-      'transition: all 0.2s ease !important'
+      'transition: opacity 0.2s ease !important'
     ].join(';');
     document.body.appendChild(banner);
   }
-  banner.textContent = message || '🔊 SightScribe: Reading tab... (Alt+Shift+R to stop)';
+  banner.textContent = message || '🔊 SightScribe: Reading visible screen... (Alt+Shift+R to stop)';
 }
 
 /**

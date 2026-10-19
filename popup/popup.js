@@ -221,13 +221,13 @@ function applyScreenReaderState(srState) {
   if (isReadingScreen) {
     toggleReaderBtn.className = 'btn-reader reading';
     readerBtnText.textContent = 'Stop Reading';
-    readerBtnSub.textContent = 'Speaking tab out loud...';
+    readerBtnSub.textContent = 'Speaking visible screen...';
     readerIconPlay.classList.add('hidden');
     readerIconStop.classList.remove('hidden');
   } else {
     toggleReaderBtn.className = 'btn-reader start';
-    readerBtnText.textContent = 'Read Tab Out Loud';
-    readerBtnSub.textContent = 'Screen Reader: Alt+Shift+R';
+    readerBtnText.textContent = 'Read Visible Screen';
+    readerBtnSub.textContent = 'Shortcut: Alt+Shift+R';
     readerIconPlay.classList.remove('hidden');
     readerIconStop.classList.add('hidden');
   }
@@ -244,7 +244,6 @@ async function handleToggleCapture() {
       const apiKey = apiKeyInput.value.trim();
       if (!apiKey) {
         showToast('Please enter your API Key below before starting.');
-        // Expand settings drawer if closed
         settingsBody.classList.remove('hidden');
         settingsChevron.classList.add('rotated');
         apiKeyInput.focus();
@@ -252,7 +251,6 @@ async function handleToggleCapture() {
         return;
       }
 
-      // Auto save if user typed key without saving
       await handleSaveSettings(false);
 
       const res = await chrome.runtime.sendMessage({ action: 'START_CAPTURE' });
@@ -414,7 +412,6 @@ async function handleSaveSettings(showFeedback = true) {
   currentSettings = newSettings;
   await chrome.storage.local.set({ sightscribe_settings: newSettings });
 
-  // Notify background/offscreen
   chrome.runtime.sendMessage({
     target: 'offscreen',
     action: 'UPDATE_SETTINGS',
