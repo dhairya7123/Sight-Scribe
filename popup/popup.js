@@ -1,9 +1,9 @@
 /**
  * SightScribe - Popup Application Logic
- * Quick start/stop toggle, side panel opener, and AI engine configuration.
+ * Quick start/stop toggle, side panel opener, screen reader, and AI engine configuration.
  */
 
-// DOM Elements
+// DOM Elements - Captions
 const toggleBtn = document.getElementById('toggleBtn');
 const toggleBtnText = document.getElementById('toggleBtnText');
 const toggleBtnSub = document.getElementById('toggleBtnSub');
@@ -16,6 +16,14 @@ const activeTabNotice = document.getElementById('activeTabNotice');
 const popupFavicon = document.getElementById('popupFavicon');
 const popupTabTitle = document.getElementById('popupTabTitle');
 
+// DOM Elements - Screen Reader
+const toggleReaderBtn = document.getElementById('toggleReaderBtn');
+const readerBtnText = document.getElementById('readerBtnText');
+const readerBtnSub = document.getElementById('readerBtnSub');
+const readerIconPlay = toggleReaderBtn.querySelector('.reader-icon-play');
+const readerIconStop = toggleReaderBtn.querySelector('.reader-icon-stop');
+
+// DOM Elements - Settings
 const toggleSettingsBtn = document.getElementById('toggleSettingsBtn');
 const settingsChevron = document.getElementById('settingsChevron');
 const settingsBody = document.getElementById('settingsBody');
@@ -41,6 +49,7 @@ const popupToast = document.getElementById('popupToast');
 const popupToastMessage = document.getElementById('popupToastMessage');
 
 let isCapturing = false;
+let isReadingScreen = false;
 let currentSettings = {};
 
 init();
@@ -49,6 +58,7 @@ async function init() {
   setupEventListeners();
   await loadSavedSettings();
   await loadState();
+  await loadScreenReaderState();
 }
 
 /**
@@ -57,6 +67,7 @@ async function init() {
 function setupEventListeners() {
   toggleBtn.addEventListener('click', handleToggleCapture);
   openSidePanelBtn.addEventListener('click', handleOpenSidePanel);
+  toggleReaderBtn.addEventListener('click', handleToggleScreenReader);
 
   // Settings toggle
   toggleSettingsBtn.addEventListener('click', () => {
@@ -97,6 +108,8 @@ function setupEventListeners() {
       applyState(message.state);
     } else if (message.action === 'CAPTURE_ERROR') {
       showToast(message.error || 'Audio capture failed');
+    } else if (message.action === 'SCREEN_READER_STATE_CHANGED' && message.state) {
+      applyScreenReaderState(message.state);
     }
   });
 }
@@ -149,6 +162,20 @@ async function loadState() {
 }
 
 /**
+ * Load Screen Reader state from background
+ */
+async function loadScreenReaderState() {
+  try {
+    const srState = await chrome.runtime.sendMessage({ action: 'GET_SCREEN_READER_STATE' });
+    if (srState) {
+      applyScreenReaderState(srState);
+    }
+  } catch (err) {
+    console.warn('Could not get screen reader state:', err);
+  }
+}
+
+/**
  * Updates UI based on capture state
  */
 function applyState(state) {
@@ -186,7 +213,28 @@ function applyState(state) {
 }
 
 /**
- * Handle Start/Stop toggle
+ * Updates UI based on Screen Reader state
+ */
+function applyScreenReaderState(srState) {
+  isReadingScreen = !!srState.isReading;
+
+  if (isReadingScreen) {
+    toggleReaderBtn.className = 'btn-reader reading';
+    readerBtnText.textContent = 'Stop Reading';
+    readerBtnSub.textContent = 'Speaking tab out loud...';
+    readerIconPlay.classList.add('hidden');
+    readerIconStop.classList.remove('hidden');
+  } else {
+    toggleReaderBtn.className = 'btn-reader start';
+    readerBtnText.textContent = 'Read Tab Out Loud';
+    readerBtnSub.textContent = 'Screen Reader: Alt+Shift+R';
+    readerIconPlay.classList.remove('hidden');
+    readerIconStop.classList.add('hidden');
+  }
+}
+
+/**
+ * Handle Start/Stop Captions toggle
  */
 async function handleToggleCapture() {
   toggleBtn.disabled = true;
@@ -218,6 +266,23 @@ async function handleToggleCapture() {
     showToast(err.message || 'Error communicating with background worker.');
   } finally {
     toggleBtn.disabled = false;
+  }
+}
+
+/**
+ * Handle Start/Stop Screen Reader toggle
+ */
+async function handleToggleScreenReader() {
+  toggleReaderBtn.disabled = true;
+  try {
+    const res = await chrome.runtime.sendMessage({ action: 'TOGGLE_SCREEN_READER' });
+    if (res && res.error) {
+      showToast(res.error);
+    }
+  } catch (err) {
+    showToast(err.message || 'Screen Reader error.');
+  } finally {
+    toggleReaderBtn.disabled = false;
   }
 }
 

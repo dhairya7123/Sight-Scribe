@@ -1,6 +1,7 @@
 /**
  * SightScribe - Side Panel Application Logic
- * Real-time caption feed, audio visualizer, auto-scrolling, search, and SRT/TXT export.
+ * Real-time caption feed, audio visualizer, auto-scrolling, search, SRT/TXT export,
+ * and quick screen reader trigger.
  */
 
 import { exportToSrt, exportToTxt, downloadFile } from '../utils/srt-generator.js';
@@ -15,6 +16,7 @@ const tabTitle = document.getElementById('tabTitle');
 const visualizerCanvas = document.getElementById('visualizerCanvas');
 const searchInput = document.getElementById('searchInput');
 const clearSearchBtn = document.getElementById('clearSearchBtn');
+const screenReaderToolBtn = document.getElementById('screenReaderToolBtn');
 const copyAllBtn = document.getElementById('copyAllBtn');
 const downloadSrtBtn = document.getElementById('downloadSrtBtn');
 const downloadTxtBtn = document.getElementById('downloadTxtBtn');
@@ -69,6 +71,13 @@ async function loadState() {
   } catch (err) {
     console.warn('Could not retrieve state:', err);
   }
+
+  try {
+    const sr = await chrome.runtime.sendMessage({ action: 'GET_SCREEN_READER_STATE' });
+    if (sr) {
+      updateScreenReaderBtn(sr.isReading);
+    }
+  } catch (e) {}
 }
 
 /**
@@ -110,6 +119,7 @@ function applyState(state) {
     activeTabCard.classList.add('hidden');
   }
 
+  // Update transcripts list (defensive deduplication)
   if (Array.isArray(state.transcripts)) {
     const deduped = [];
     for (const seg of state.transcripts) {
@@ -125,12 +135,44 @@ function applyState(state) {
   }
 }
 
+function updateScreenReaderBtn(isReading) {
+  if (screenReaderToolBtn) {
+    if (isReading) {
+      screenReaderToolBtn.classList.add('active');
+      screenReaderToolBtn.title = 'Stop Screen Reader (Alt+Shift+R)';
+      screenReaderToolBtn.style.color = '#38bdf8';
+    } else {
+      screenReaderToolBtn.classList.remove('active');
+      screenReaderToolBtn.title = 'Read Active Tab Out Loud (Alt+Shift+R)';
+      screenReaderToolBtn.style.color = '';
+    }
+  }
+}
+
 /**
  * Event listeners
  */
 function setupEventListeners() {
   // Capture toggle
   toggleCaptureBtn.addEventListener('click', handleToggleCapture);
+
+  // Screen Reader button in toolbar
+  if (screenReaderToolBtn) {
+    screenReaderToolBtn.addEventListener('click', async () => {
+      try {
+        const res = await chrome.runtime.sendMessage({ action: 'TOGGLE_SCREEN_READER' });
+        if (res && res.error) {
+          showError(res.error);
+        } else if (res && res.active) {
+          showSuccess('Reading tab out loud (Alt+Shift+R to stop)');
+        } else {
+          showSuccess('Screen reader stopped');
+        }
+      } catch (err) {
+        showError('Screen reader error: ' + err.message);
+      }
+    });
+  }
 
   // Search
   searchInput.addEventListener('input', (e) => {
@@ -209,6 +251,12 @@ function setupEventListeners() {
       case 'STATE_CHANGED':
         if (message.state) {
           applyState(message.state);
+        }
+        break;
+
+      case 'SCREEN_READER_STATE_CHANGED':
+        if (message.state) {
+          updateScreenReaderBtn(message.state.isReading);
         }
         break;
 
@@ -315,13 +363,11 @@ function appendSegment(segment) {
   emptyState.classList.add('hidden');
   transcriptsList.classList.remove('hidden');
 
-  // Remove latest highlight from previous cards
   const previousLatest = transcriptsList.querySelector('.caption-card.latest');
   if (previousLatest) {
     previousLatest.classList.remove('latest');
   }
 
-  // If search filter is active, only append if matches
   if (searchTerm && !segment.text.toLowerCase().includes(searchTerm)) {
     return;
   }
@@ -340,7 +386,6 @@ function createCaptionCard(segment, isLatest) {
 
   let displayText = segment.text;
   if (searchTerm) {
-    // Highlight matching query
     const regex = new RegExp(`(${escapeRegex(searchTerm)})`, 'gi');
     displayText = displayText.replace(regex, '<mark style="background: rgba(245, 158, 11, 0.4); color: white; border-radius: 2px; padding: 0 2px;">$1</mark>');
   }
@@ -360,7 +405,6 @@ function createCaptionCard(segment, isLatest) {
     <div class="caption-text">${displayText}</div>
   `;
 
-  // Single card copy handler
   const copyBtn = card.querySelector('.copy-seg-btn');
   copyBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(segment.text).then(() => {
@@ -477,7 +521,6 @@ function setupVisualizer() {
   const barGap = 4;
 
   function renderVisualizer() {
-    // Smooth interpolation towards target energy
     visualizerEnergy += (visualizerTargetEnergy - visualizerEnergy) * 0.25;
 
     const width = visualizerCanvas.width;
@@ -487,7 +530,6 @@ function setupVisualizer() {
     const activeEnergy = isCapturing ? visualizerEnergy : 0.05;
 
     for (let i = 0; i < barCount; i++) {
-      // Simulate realistic frequency curve
       const progress = i / barCount;
       const wave = Math.sin(Date.now() * 0.005 + i * 0.4) * 0.3 + 0.7;
       const barHeight = Math.max(3, activeEnergy * height * wave * (1 - Math.abs(progress - 0.5) * 0.4));
@@ -495,7 +537,6 @@ function setupVisualizer() {
       const x = i * (barWidth + barGap) + 4;
       const y = height - barHeight;
 
-      // Color gradient from Indigo to Cyan
       const grad = canvasCtx.createLinearGradient(0, height, 0, 0);
       if (isCapturing && activeEnergy > 0.1) {
         grad.addColorStop(0, '#4f46e5');

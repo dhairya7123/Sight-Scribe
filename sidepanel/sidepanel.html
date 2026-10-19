@@ -62,6 +62,12 @@
         </div>
 
         <div class="action-buttons">
+          <button id="screenReaderToolBtn" class="tool-btn" title="Read Active Tab Out Loud (Alt+Shift+R)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
+          </button>
           <button id="copyAllBtn" class="tool-btn" title="Copy All Transcripts">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -110,6 +116,10 @@
             <span class="hint-dot"></span>
             <span>Export full transcripts as ready-to-use <strong>.SRT</strong> or <strong>.TXT</strong></span>
           </div>
+          <div class="hint-item">
+            <span class="hint-dot"></span>
+            <span>Screen Reader: Press <strong>Alt+Shift+R</strong> anytime to read tab out loud</span>
+          </div>
         </div>
       </div>
 
@@ -128,40 +138,29 @@
 
     <!-- Error Toast Notification -->
     <div id="errorToast" class="toast-error hidden">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"></circle>
-        <line x1="12" y1="8" x2="12" y2="12"></line>
-        <line x1="12" y1="16" x2="12.01" y2="16"></line>
-      </svg>
-      <span id="errorMessage" class="toast-text"></span>
-      <button id="closeToastBtn" class="toast-close">&times;</button>
+      <span id="errorMessage">An error occurred.</span>
+      <button id="closeToastBtn" class="close-toast-btn">&times;</button>
     </div>
 
     <!-- Success Toast Notification -->
     <div id="successToast" class="toast-success hidden">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M20 6L9 17l-5-5"></path>
-      </svg>
-      <span id="successMessage" class="toast-text"></span>
+      <span id="successMessage">Action succeeded!</span>
     </div>
 
-    <!-- Bottom Action Footer -->
+    <!-- Footer Controls -->
     <footer class="panel-footer">
       <div class="footer-info">
-        <span id="providerInfo" class="provider-tag">Engine: Groq Whisper</span>
-        <span id="segmentCount" class="segment-counter">0 captions</span>
+        <span id="providerInfo" class="provider-info">Engine: Groq Whisper</span>
+        <span id="segmentCount" class="segment-count">0 captions</span>
       </div>
-
-      <div class="footer-controls">
+      <div class="footer-actions">
         <button id="toggleCaptureBtn" class="btn-primary start">
-          <div class="btn-icon">
-            <svg class="play-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-            </svg>
-            <svg class="stop-icon hidden" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="5" y="5" width="14" height="14" rx="2"></rect>
-            </svg>
-          </div>
+          <svg class="play-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <svg class="stop-icon hidden" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+          </svg>
           <span id="toggleCaptureText">Start Captions</span>
         </button>
       </div>

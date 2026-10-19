@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "SightScribe - Live Audio & Video Captions",
-  "version": "1.0.0",
-  "description": "Hear audio from songs and videos playing in any browser tab and generate real-time AI captions and transcripts.",
+  "name": "SightScribe - Live Captions & Screen Reader",
+  "version": "1.1.0",
+  "description": "Hear audio from songs and videos playing in any browser tab to generate real-time AI captions, or read the entire screen tab out loud.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -14,7 +14,9 @@
     "activeTab",
     "storage",
     "offscreen",
-    "sidePanel"
+    "sidePanel",
+    "tts",
+    "scripting"
   ],
   "host_permissions": [
     "https://api.groq.com/*",
@@ -24,7 +26,7 @@
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "SightScribe - Live Captions",
+    "default_title": "SightScribe - Live Captions & Screen Reader",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -38,5 +40,21 @@
   "background": {
     "service_worker": "background.js",
     "type": "module"
+  },
+  "commands": {
+    "toggle_screen_reader": {
+      "suggested_key": {
+        "default": "Alt+Shift+R",
+        "mac": "Alt+Shift+R"
+      },
+      "description": "Read browser tab out loud (Screen Reader)"
+    },
+    "stop_screen_reader": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "Alt+Shift+S"
+      },
+      "description": "Stop Screen Reader speech"
+    }
   }
 }

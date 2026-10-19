@@ -1,14 +1,21 @@
 /**
  * SightScribe - Background Service Worker (Manifest V3)
  * Manages audio capture lifecycle, offscreen document orchestration,
- * side panel coordination, and transcript state distribution.
+ * side panel coordination, transcript state distribution, and
+ * tab content Screen Reader with keyboard shortcuts.
  */
 
 import { normalizeForComparison } from './utils/text-dedup.js';
+import {
+  splitTextIntoChunks,
+  inPageExtractContents,
+  inPageShowBanner,
+  inPageHideBanner
+} from './utils/screen-reader.js';
 
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen/offscreen.html';
 
-// In-memory state (backed by storage.session where applicable)
+// In-memory state for captions (backed by storage.session where applicable)
 let state = {
   isCapturing: false,
   capturedTabId: null,
@@ -20,6 +27,17 @@ let state = {
   transcriptionState: 'idle', // 'idle' | 'processing' | 'error'
   lastError: null
 };
+
+// In-memory state for screen reader
+let screenReaderState = {
+  isReading: false,
+  tabId: null,
+  title: '',
+  totalChunks: 0,
+  currentChunkIndex: 0
+};
+let ttsQueue = [];
+let ttsQueueIndex = 0;
 
 // Default settings
 const DEFAULT_SETTINGS = {
@@ -84,6 +102,9 @@ function updateBadge(active) {
   if (active) {
     chrome.action.setBadgeText({ text: 'LIVE' });
     chrome.action.setBadgeBackgroundColor({ color: '#4f46e5' });
+  } else if (screenReaderState.isReading) {
+    chrome.action.setBadgeText({ text: 'READ' });
+    chrome.action.setBadgeBackgroundColor({ color: '#0284c7' });
   } else {
     chrome.action.setBadgeText({ text: '' });
   }
@@ -137,6 +158,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
       }
       sendResponse({ success: true });
+      break;
+    }
+
+    // --- Screen Reader Controls ---
+    case 'TOGGLE_SCREEN_READER': {
+      handleToggleScreenReader(message.tabId)
+        .then((res) => sendResponse(res))
+        .catch((err) => sendResponse({ active: false, error: err.message }));
+      return true;
+    }
+
+    case 'STOP_SCREEN_READER': {
+      handleStopScreenReader()
+        .then((res) => sendResponse(res))
+        .catch((err) => sendResponse({ active: false, error: err.message }));
+      return true;
+    }
+
+    case 'GET_SCREEN_READER_STATE': {
+      sendResponse({ ...screenReaderState });
       break;
     }
 
@@ -200,7 +241,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 /**
- * Initiates tab capture
+ * Keyboard shortcuts listener
+ */
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command === 'toggle_screen_reader') {
+    await handleToggleScreenReader();
+  } else if (command === 'stop_screen_reader') {
+    await handleStopScreenReader();
+  }
+});
+
+/**
+ * Initiates tab capture for captions
  */
 async function handleStartCapture(explicitTabId) {
   let targetTab;
@@ -280,10 +332,174 @@ async function handleStopCapture() {
   broadcast('STATE_CHANGED', { state: { ...state } });
 }
 
-// Clean up if captured tab is closed
+/**
+ * Toggles the Screen Reader for the active browser tab
+ */
+async function handleToggleScreenReader(targetTabId = null) {
+  if (screenReaderState.isReading) {
+    await handleStopScreenReader();
+    return { active: false };
+  }
+  return await handleStartScreenReader(targetTabId);
+}
+
+/**
+ * Starts reading the active browser tab out loud
+ */
+async function handleStartScreenReader(explicitTabId = null) {
+  let targetTab;
+  if (explicitTabId) {
+    targetTab = await chrome.tabs.get(explicitTabId).catch(() => null);
+  }
+  if (!targetTab) {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    targetTab = tabs[0];
+  }
+
+  if (!targetTab || !targetTab.id) {
+    speakOneOffNotice('No active browser tab found to read.');
+    return { active: false, error: 'No active tab' };
+  }
+
+  // Check for restricted browser pages
+  if (targetTab.url && (
+    targetTab.url.startsWith('chrome://') ||
+    targetTab.url.startsWith('chrome-extension://') ||
+    targetTab.url.startsWith('edge://') ||
+    targetTab.url.startsWith('about:') ||
+    targetTab.url.startsWith('view-source:')
+  )) {
+    speakOneOffNotice('Cannot read internal browser pages. Please navigate to any webpage to use the screen reader.');
+    return { active: false, error: 'Restricted page' };
+  }
+
+  // Stop any previous utterance
+  try {
+    chrome.tts.stop();
+  } catch (e) {}
+
+  // Extract visible content from active tab
+  let extracted = null;
+  try {
+    const injectionResults = await chrome.scripting.executeScript({
+      target: { tabId: targetTab.id },
+      func: inPageExtractContents
+    });
+    if (injectionResults && injectionResults[0] && injectionResults[0].result) {
+      extracted = injectionResults[0].result;
+    }
+  } catch (err) {
+    console.warn('Script execution error:', err);
+    speakOneOffNotice('Cannot access page content. Please refresh the page and try again.');
+    return { active: false, error: err.message };
+  }
+
+  if (!extracted || (!extracted.text && !extracted.title)) {
+    speakOneOffNotice('No readable text found on this tab.');
+    return { active: false, error: 'No text' };
+  }
+
+  // Build utterance queue
+  const titleIntro = `Reading webpage: ${extracted.title || 'Untitled'}.`;
+  const contentChunks = splitTextIntoChunks(extracted.text);
+
+  ttsQueue = [titleIntro, ...contentChunks];
+  ttsQueueIndex = 0;
+
+  screenReaderState.isReading = true;
+  screenReaderState.tabId = targetTab.id;
+  screenReaderState.title = extracted.title || 'Webpage';
+  screenReaderState.totalChunks = ttsQueue.length;
+  screenReaderState.currentChunkIndex = 0;
+
+  // Show floating indicator on tab
+  chrome.scripting.executeScript({
+    target: { tabId: targetTab.id },
+    func: inPageShowBanner,
+    args: ['🔊 SightScribe: Reading tab... (Alt+Shift+R to stop)']
+  }).catch(() => {});
+
+  updateBadge(state.isCapturing);
+  broadcast('SCREEN_READER_STATE_CHANGED', { state: { ...screenReaderState } });
+
+  speakNextChunk();
+  return { active: true };
+}
+
+/**
+ * Stops screen reader playback
+ */
+async function handleStopScreenReader() {
+  screenReaderState.isReading = false;
+  ttsQueue = [];
+  ttsQueueIndex = 0;
+
+  try {
+    chrome.tts.stop();
+  } catch (e) {}
+
+  if (screenReaderState.tabId) {
+    chrome.scripting.executeScript({
+      target: { tabId: screenReaderState.tabId },
+      func: inPageHideBanner
+    }).catch(() => {});
+  }
+
+  screenReaderState.tabId = null;
+  updateBadge(state.isCapturing);
+  broadcast('SCREEN_READER_STATE_CHANGED', { state: { ...screenReaderState } });
+  return { active: false };
+}
+
+/**
+ * Sequential chunk speech loop for Chrome TTS
+ */
+function speakNextChunk() {
+  if (!screenReaderState.isReading || ttsQueueIndex >= ttsQueue.length) {
+    handleStopScreenReader();
+    return;
+  }
+
+  const chunk = ttsQueue[ttsQueueIndex];
+  screenReaderState.currentChunkIndex = ttsQueueIndex;
+
+  chrome.tts.speak(chunk, {
+    rate: 1.0,
+    enqueue: false,
+    onEvent: (event) => {
+      if (!screenReaderState.isReading) return;
+
+      if (event.type === 'end') {
+        ttsQueueIndex++;
+        speakNextChunk();
+      } else if (event.type === 'error' || event.type === 'interrupted' || event.type === 'cancelled') {
+        if (event.type === 'error') {
+          console.warn('TTS playback error:', event);
+          ttsQueueIndex++;
+          speakNextChunk();
+        }
+      }
+    }
+  });
+}
+
+/**
+ * Speaks a brief one-off announcement
+ */
+function speakOneOffNotice(text) {
+  try {
+    chrome.tts.stop();
+    chrome.tts.speak(text, { rate: 1.0 });
+  } catch (e) {}
+}
+
+// Clean up if closed tab was captured or being read
 chrome.tabs.onRemoved.addListener((tabId) => {
   if (state.isCapturing && state.capturedTabId === tabId) {
     handleStopCapture();
     broadcast('CAPTURE_ERROR', { error: 'The captured tab was closed.' });
+  }
+  if (screenReaderState.isReading && screenReaderState.tabId === tabId) {
+    handleStopScreenReader();
   }
 });
