@@ -40,6 +40,7 @@ body {
   font-size: 13px;
   line-height: 1.4;
   overflow-x: hidden;
+  position: relative;
 }
 
 .popup-container {
@@ -86,6 +87,34 @@ body {
 .subtitle {
   font-size: 10px;
   color: var(--text-muted);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Settings Icon Button */
+.btn-settings-icon {
+  background: #1e293b;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-settings-icon:hover {
+  background: #334155;
+  color: #38bdf8;
+  border-color: #38bdf8;
+  transform: rotate(30deg);
 }
 
 .status-badge {
@@ -328,50 +357,37 @@ body {
   text-overflow: ellipsis;
 }
 
-/* Settings Section */
-.settings-section {
+/* Captioning Options Section (Remains on frontend) */
+.caption-options-section {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
 }
 
-.section-title-row {
+.options-header-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 10px 12px;
-  cursor: pointer;
-  user-select: none;
   background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
-.section-title-row:hover {
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.section-title-row h2 {
+.options-header-row h2 {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
 }
 
-.chevron-icon {
-  color: var(--text-muted);
-  transition: transform 0.2s ease;
-}
-
-.chevron-icon.rotated {
-  transform: rotate(180deg);
-}
-
-.settings-body {
+.options-body {
   padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
+/* Form inputs & controls */
 .form-group {
   display: flex;
   flex-direction: column;
@@ -516,12 +532,95 @@ input[type="range"] {
 
 .btn-save:hover {
   background: #334155;
+  border-color: #4f46e5;
 }
 
 .save-status {
   font-size: 11px;
   color: var(--accent-emerald);
   font-weight: 600;
+}
+
+/* Settings Modal (Overlay that comes up when clicking Settings Icon) */
+.settings-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.settings-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 7, 12, 0.75);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  animation: fade-in 0.15s ease-out;
+}
+
+.settings-dialog {
+  position: relative;
+  z-index: 1001;
+  width: 100%;
+  max-width: 316px;
+  background: #101625;
+  border: 1px solid var(--border-hover);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6), 0 0 20px rgba(99, 102, 241, 0.15);
+  border-radius: 12px;
+  overflow: hidden;
+  animation: slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.settings-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.25);
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.settings-title-icon {
+  color: #38bdf8;
+}
+
+.settings-dialog-header h2 {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.close-dialog-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.close-dialog-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.settings-dialog-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* Toast */
@@ -536,8 +635,13 @@ input[type="range"] {
 }
 
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .hidden {

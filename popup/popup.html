@@ -21,9 +21,18 @@
           <p class="subtitle">Live Captions & Screen Reader</p>
         </div>
       </div>
-      <div id="statusBadge" class="status-badge idle">
-        <span class="status-dot"></span>
-        <span id="statusLabel">Idle</span>
+      <div class="header-actions">
+        <!-- Settings Icon Button -->
+        <button id="openSettingsBtn" class="btn-settings-icon" title="AI Model & API Key Settings" aria-label="Open Settings">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+        <div id="statusBadge" class="status-badge idle">
+          <span class="status-dot"></span>
+          <span id="statusLabel">Idle</span>
+        </div>
       </div>
     </header>
 
@@ -84,62 +93,13 @@
       </div>
     </section>
 
-    <!-- Settings Accordion / Form -->
-    <section class="settings-section">
-      <div class="section-title-row" id="toggleSettingsBtn">
-        <h2>AI Engine & Settings</h2>
-        <svg class="chevron-icon" id="settingsChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
+    <!-- Captioning Options Section (Remains visible on frontend) -->
+    <section class="caption-options-section">
+      <div class="options-header-row">
+        <h2>Captioning Options</h2>
       </div>
 
-      <div class="settings-body" id="settingsBody">
-        <!-- AI Engine Selection -->
-        <div class="form-group">
-          <label for="providerSelect">Speech AI Engine</label>
-          <select id="providerSelect">
-            <option value="groq">Groq Whisper Turbo (Free & Blazing Fast)</option>
-            <option value="openai">OpenAI Whisper API</option>
-            <option value="custom">Custom Whisper / OpenAI Compatible</option>
-          </select>
-        </div>
-
-        <!-- API Key Input -->
-        <div class="form-group">
-          <div class="label-with-link">
-            <label for="apiKeyInput">API Key</label>
-            <a href="https://console.groq.com/keys" target="_blank" id="apiKeyLink" class="helper-link">Get Free Key ↗</a>
-          </div>
-          <div class="input-with-action">
-            <input type="password" id="apiKeyInput" placeholder="gsk_... or sk-..." />
-            <button type="button" id="toggleKeyVisibilityBtn" class="action-btn" title="Show/Hide Key">
-              <svg id="eyeIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                <circle cx="12" cy="12" r="3"></circle>
-              </svg>
-            </button>
-          </div>
-          <div class="test-key-row">
-            <button type="button" id="testApiKeyBtn" class="btn-outline-sm">Test Connection</button>
-            <span id="testKeyStatus" class="test-status"></span>
-          </div>
-        </div>
-
-        <!-- Model Selection -->
-        <div class="form-group">
-          <label for="modelSelect">AI Model</label>
-          <select id="modelSelect">
-            <option value="whisper-large-v3-turbo">whisper-large-v3-turbo (Recommended)</option>
-            <option value="whisper-large-v3">whisper-large-v3 (Highest Accuracy)</option>
-          </select>
-        </div>
-
-        <!-- Custom Endpoint (Shown if provider is custom) -->
-        <div class="form-group hidden" id="customEndpointGroup">
-          <label for="customEndpointInput">Custom Endpoint URL</label>
-          <input type="text" id="customEndpointInput" placeholder="http://localhost:8000/v1/audio/transcriptions" />
-        </div>
-
+      <div class="options-body">
         <!-- Spoken Language -->
         <div class="form-group">
           <label for="languageSelect">Audio Language</label>
@@ -182,14 +142,79 @@
           <input type="range" id="vadThresholdRange" min="0.002" max="0.02" step="0.002" value="0.008" />
           <span class="form-help">Skips API calls during song pauses or video silence</span>
         </div>
-
-        <!-- Save button feedback -->
-        <div class="settings-footer">
-          <button id="saveSettingsBtn" class="btn-save">Save Settings</button>
-          <span id="saveStatus" class="save-status"></span>
-        </div>
       </div>
     </section>
+
+    <!-- Settings Menu Modal (Opened by clicking the Settings Icon) -->
+    <div id="settingsModal" class="settings-modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="settings-backdrop" id="closeSettingsBackdrop"></div>
+      <div class="settings-dialog">
+        <div class="settings-dialog-header">
+          <div class="settings-title-wrap">
+            <svg class="settings-title-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            <h2 id="settingsTitle">AI Engine & Model Settings</h2>
+          </div>
+          <button id="closeSettingsBtn" class="close-dialog-btn" title="Close Settings" aria-label="Close Settings">&times;</button>
+        </div>
+
+        <div class="settings-dialog-body">
+          <!-- Speech AI Engine -->
+          <div class="form-group">
+            <label for="providerSelect">Speech AI Engine</label>
+            <select id="providerSelect">
+              <option value="groq">Groq Whisper Turbo (Free & Blazing Fast)</option>
+              <option value="openai">OpenAI Whisper API</option>
+              <option value="custom">Custom Whisper / OpenAI Compatible</option>
+            </select>
+          </div>
+
+          <!-- API Key Input -->
+          <div class="form-group">
+            <div class="label-with-link">
+              <label for="apiKeyInput">API Key</label>
+              <a href="https://console.groq.com/keys" target="_blank" id="apiKeyLink" class="helper-link">Get Free Key ↗</a>
+            </div>
+            <div class="input-with-action">
+              <input type="password" id="apiKeyInput" placeholder="gsk_... or sk-..." />
+              <button type="button" id="toggleKeyVisibilityBtn" class="action-btn" title="Show/Hide Key">
+                <svg id="eyeIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
+            <div class="test-key-row">
+              <button type="button" id="testApiKeyBtn" class="btn-outline-sm">Test Connection</button>
+              <span id="testKeyStatus" class="test-status"></span>
+            </div>
+          </div>
+
+          <!-- Model Selection -->
+          <div class="form-group">
+            <label for="modelSelect">AI Model</label>
+            <select id="modelSelect">
+              <option value="whisper-large-v3-turbo">whisper-large-v3-turbo (Recommended)</option>
+              <option value="whisper-large-v3">whisper-large-v3 (Highest Accuracy)</option>
+            </select>
+          </div>
+
+          <!-- Custom Endpoint (Shown if provider is custom) -->
+          <div class="form-group hidden" id="customEndpointGroup">
+            <label for="customEndpointInput">Custom Endpoint URL</label>
+            <input type="text" id="customEndpointInput" placeholder="http://localhost:8000/v1/audio/transcriptions" />
+          </div>
+
+          <!-- Save button feedback -->
+          <div class="settings-footer">
+            <button id="saveSettingsBtn" class="btn-save">Save Settings</button>
+            <span id="saveStatus" class="save-status"></span>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Error Toast -->
     <div id="popupToast" class="popup-toast hidden">

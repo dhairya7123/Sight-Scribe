@@ -23,10 +23,18 @@ const readerBtnSub = document.getElementById('readerBtnSub');
 const readerIconPlay = toggleReaderBtn.querySelector('.reader-icon-play');
 const readerIconStop = toggleReaderBtn.querySelector('.reader-icon-stop');
 
-// DOM Elements - Settings
-const toggleSettingsBtn = document.getElementById('toggleSettingsBtn');
-const settingsChevron = document.getElementById('settingsChevron');
-const settingsBody = document.getElementById('settingsBody');
+// DOM Elements - Frontend Captioning Options
+const languageSelect = document.getElementById('languageSelect');
+const chunkDurationRange = document.getElementById('chunkDurationRange');
+const chunkDurationVal = document.getElementById('chunkDurationVal');
+const vadThresholdRange = document.getElementById('vadThresholdRange');
+const vadThresholdVal = document.getElementById('vadThresholdVal');
+
+// DOM Elements - Settings Modal (Model & API Key)
+const openSettingsBtn = document.getElementById('openSettingsBtn');
+const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+const closeSettingsBackdrop = document.getElementById('closeSettingsBackdrop');
+const settingsModal = document.getElementById('settingsModal');
 
 const providerSelect = document.getElementById('providerSelect');
 const apiKeyInput = document.getElementById('apiKeyInput');
@@ -34,15 +42,9 @@ const apiKeyLink = document.getElementById('apiKeyLink');
 const toggleKeyVisibilityBtn = document.getElementById('toggleKeyVisibilityBtn');
 const testApiKeyBtn = document.getElementById('testApiKeyBtn');
 const testKeyStatus = document.getElementById('testKeyStatus');
-
 const modelSelect = document.getElementById('modelSelect');
 const customEndpointGroup = document.getElementById('customEndpointGroup');
 const customEndpointInput = document.getElementById('customEndpointInput');
-const languageSelect = document.getElementById('languageSelect');
-const chunkDurationRange = document.getElementById('chunkDurationRange');
-const chunkDurationVal = document.getElementById('chunkDurationVal');
-const vadThresholdRange = document.getElementById('vadThresholdRange');
-const vadThresholdVal = document.getElementById('vadThresholdVal');
 const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 const saveStatus = document.getElementById('saveStatus');
 const popupToast = document.getElementById('popupToast');
@@ -69,27 +71,35 @@ function setupEventListeners() {
   openSidePanelBtn.addEventListener('click', handleOpenSidePanel);
   toggleReaderBtn.addEventListener('click', handleToggleScreenReader);
 
-  // Settings toggle
-  toggleSettingsBtn.addEventListener('click', () => {
-    settingsBody.classList.toggle('hidden');
-    settingsChevron.classList.toggle('rotated');
+  // Settings Modal open/close
+  openSettingsBtn.addEventListener('click', openSettingsModal);
+  closeSettingsBtn.addEventListener('click', closeSettingsModal);
+  closeSettingsBackdrop.addEventListener('click', closeSettingsModal);
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !settingsModal.classList.contains('hidden')) {
+      closeSettingsModal();
+    }
   });
 
-  // Engine switch
+  // Engine switch inside settings modal
   providerSelect.addEventListener('change', handleProviderChange);
 
-  // Toggle API key visibility
+  // Toggle API key visibility inside settings modal
   toggleKeyVisibilityBtn.addEventListener('click', () => {
     const isPassword = apiKeyInput.type === 'password';
     apiKeyInput.type = isPassword ? 'text' : 'password';
   });
 
-  // Test API key
+  // Test API key inside settings modal
   testApiKeyBtn.addEventListener('click', handleTestApiKey);
 
-  // Range sliders
+  // Range sliders on frontend captioning options
   chunkDurationRange.addEventListener('input', (e) => {
     chunkDurationVal.textContent = `${e.target.value}s`;
+  });
+  chunkDurationRange.addEventListener('change', () => {
+    handleSaveSettings(false);
   });
 
   vadThresholdRange.addEventListener('input', (e) => {
@@ -98,9 +108,17 @@ function setupEventListeners() {
     else if (v <= 0.012) vadThresholdVal.textContent = 'Normal';
     else vadThresholdVal.textContent = 'Strict';
   });
+  vadThresholdRange.addEventListener('change', () => {
+    handleSaveSettings(false);
+  });
 
-  // Save settings
-  saveSettingsBtn.addEventListener('click', handleSaveSettings);
+  // Spoken Language change on frontend
+  languageSelect.addEventListener('change', () => {
+    handleSaveSettings(false);
+  });
+
+  // Save settings inside settings modal
+  saveSettingsBtn.addEventListener('click', () => handleSaveSettings(true));
 
   // Background message listener
   chrome.runtime.onMessage.addListener((message) => {
@@ -112,6 +130,20 @@ function setupEventListeners() {
       applyScreenReaderState(message.state);
     }
   });
+}
+
+/**
+ * Open/Close Settings Menu Modal
+ */
+function openSettingsModal() {
+  settingsModal.classList.remove('hidden');
+  apiKeyInput.focus();
+}
+
+function closeSettingsModal() {
+  settingsModal.classList.add('hidden');
+  testKeyStatus.textContent = '';
+  saveStatus.textContent = '';
 }
 
 /**
@@ -243,9 +275,8 @@ async function handleToggleCapture() {
     if (!isCapturing) {
       const apiKey = apiKeyInput.value.trim();
       if (!apiKey) {
-        showToast('Please enter your API Key below before starting.');
-        settingsBody.classList.remove('hidden');
-        settingsChevron.classList.add('rotated');
+        showToast('Please set your API key in Settings before starting.');
+        openSettingsModal();
         apiKeyInput.focus();
         toggleBtn.disabled = false;
         return;
@@ -422,7 +453,8 @@ async function handleSaveSettings(showFeedback = true) {
     saveStatus.textContent = '✓ Saved';
     setTimeout(() => {
       saveStatus.textContent = '';
-    }, 2000);
+      closeSettingsModal();
+    }, 700);
   }
 }
 

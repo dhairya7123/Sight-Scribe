@@ -1,7 +1,7 @@
 /**
  * SightScribe - Side Panel Application Logic
  * Real-time caption feed, audio visualizer, auto-scrolling, search, SRT/TXT export,
- * and quick screen reader trigger.
+ * quick screen reader trigger, and AI Model & API Key Settings.
  */
 
 import { exportToSrt, exportToTxt, downloadFile } from '../utils/srt-generator.js';
@@ -17,6 +17,7 @@ const visualizerCanvas = document.getElementById('visualizerCanvas');
 const searchInput = document.getElementById('searchInput');
 const clearSearchBtn = document.getElementById('clearSearchBtn');
 const screenReaderToolBtn = document.getElementById('screenReaderToolBtn');
+const sidepanelSettingsBtn = document.getElementById('sidepanelSettingsBtn');
 const copyAllBtn = document.getElementById('copyAllBtn');
 const downloadSrtBtn = document.getElementById('downloadSrtBtn');
 const downloadTxtBtn = document.getElementById('downloadTxtBtn');
@@ -37,6 +38,22 @@ const toggleCaptureText = document.getElementById('toggleCaptureText');
 const playIcon = toggleCaptureBtn.querySelector('.play-icon');
 const stopIcon = toggleCaptureBtn.querySelector('.stop-icon');
 
+// Settings Modal DOM Elements
+const sidepanelSettingsModal = document.getElementById('sidepanelSettingsModal');
+const closeSidepanelSettingsBtn = document.getElementById('closeSidepanelSettingsBtn');
+const closeSidepanelSettingsBackdrop = document.getElementById('closeSidepanelSettingsBackdrop');
+const spProviderSelect = document.getElementById('spProviderSelect');
+const spApiKeyInput = document.getElementById('spApiKeyInput');
+const spApiKeyLink = document.getElementById('spApiKeyLink');
+const spToggleKeyVisibilityBtn = document.getElementById('spToggleKeyVisibilityBtn');
+const spTestApiKeyBtn = document.getElementById('spTestApiKeyBtn');
+const spTestKeyStatus = document.getElementById('spTestKeyStatus');
+const spModelSelect = document.getElementById('spModelSelect');
+const spCustomEndpointGroup = document.getElementById('spCustomEndpointGroup');
+const spCustomEndpointInput = document.getElementById('spCustomEndpointInput');
+const spSaveSettingsBtn = document.getElementById('spSaveSettingsBtn');
+const spSaveStatus = document.getElementById('spSaveStatus');
+
 // Visualizer setup
 const canvasCtx = visualizerCanvas.getContext('2d');
 let visualizerEnergy = 0;
@@ -54,6 +71,7 @@ init();
 
 async function init() {
   setupEventListeners();
+  setupSettingsModalEventListeners();
   setupVisualizer();
   await loadState();
   await loadProviderSettings();
@@ -273,6 +291,171 @@ function setupEventListeners() {
 }
 
 /**
+ * Settings Modal setup for Side Panel
+ */
+function setupSettingsModalEventListeners() {
+  if (!sidepanelSettingsBtn) return;
+
+  sidepanelSettingsBtn.addEventListener('click', openSidepanelSettingsModal);
+  closeSidepanelSettingsBtn.addEventListener('click', closeSidepanelSettingsModal);
+  closeSidepanelSettingsBackdrop.addEventListener('click', closeSidepanelSettingsModal);
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && sidepanelSettingsModal && !sidepanelSettingsModal.classList.contains('hidden')) {
+      closeSidepanelSettingsModal();
+    }
+  });
+
+  spProviderSelect.addEventListener('change', () => {
+    updateSpProviderUI(spProviderSelect.value);
+  });
+
+  spToggleKeyVisibilityBtn.addEventListener('click', () => {
+    const isPassword = spApiKeyInput.type === 'password';
+    spApiKeyInput.type = isPassword ? 'text' : 'password';
+  });
+
+  spTestApiKeyBtn.addEventListener('click', handleSpTestApiKey);
+  spSaveSettingsBtn.addEventListener('click', handleSpSaveSettings);
+}
+
+async function openSidepanelSettingsModal() {
+  const storage = await chrome.storage.local.get('sightscribe_settings');
+  const settings = storage.sightscribe_settings || {
+    provider: 'groq',
+    apiKey: '',
+    model: 'whisper-large-v3-turbo',
+    customEndpoint: 'http://localhost:8000/v1/audio/transcriptions'
+  };
+
+  spProviderSelect.value = settings.provider || 'groq';
+  spApiKeyInput.value = settings.apiKey || '';
+  updateSpProviderUI(settings.provider || 'groq');
+  spModelSelect.value = settings.model || 'whisper-large-v3-turbo';
+  spCustomEndpointInput.value = settings.customEndpoint || '';
+
+  sidepanelSettingsModal.classList.remove('hidden');
+  spApiKeyInput.focus();
+}
+
+function closeSidepanelSettingsModal() {
+  sidepanelSettingsModal.classList.add('hidden');
+  spTestKeyStatus.textContent = '';
+  spSaveStatus.textContent = '';
+}
+
+function updateSpProviderUI(provider) {
+  spModelSelect.innerHTML = '';
+
+  if (provider === 'groq') {
+    spApiKeyLink.href = 'https://console.groq.com/keys';
+    spApiKeyLink.textContent = 'Get Free Groq Key ↗';
+    spApiKeyInput.placeholder = 'gsk_...';
+    spCustomEndpointGroup.classList.add('hidden');
+
+    spModelSelect.innerHTML = `
+      <option value="whisper-large-v3-turbo">whisper-large-v3-turbo (Fastest & Free)</option>
+      <option value="whisper-large-v3">whisper-large-v3 (Maximum Accuracy)</option>
+    `;
+  } else if (provider === 'openai') {
+    spApiKeyLink.href = 'https://platform.openai.com/api-keys';
+    spApiKeyLink.textContent = 'Get OpenAI Key ↗';
+    spApiKeyInput.placeholder = 'sk-...';
+    spCustomEndpointGroup.classList.add('hidden');
+
+    spModelSelect.innerHTML = `
+      <option value="whisper-1">whisper-1 (OpenAI)</option>
+    `;
+  } else if (provider === 'custom') {
+    spApiKeyLink.href = '#';
+    spApiKeyLink.textContent = 'Local/Custom';
+    spApiKeyInput.placeholder = 'Optional API key...';
+    spCustomEndpointGroup.classList.remove('hidden');
+
+    spModelSelect.innerHTML = `
+      <option value="whisper-1">whisper-1</option>
+      <option value="whisper-large-v3">whisper-large-v3</option>
+    `;
+  }
+}
+
+async function handleSpTestApiKey() {
+  const provider = spProviderSelect.value;
+  const key = spApiKeyInput.value.trim();
+
+  if (!key && provider !== 'custom') {
+    spTestKeyStatus.className = 'test-status error';
+    spTestKeyStatus.textContent = 'Key required';
+    return;
+  }
+
+  spTestKeyStatus.className = 'test-status loading';
+  spTestKeyStatus.textContent = 'Testing...';
+
+  try {
+    let url = '';
+    if (provider === 'groq') {
+      url = 'https://api.groq.com/openai/v1/models';
+    } else if (provider === 'openai') {
+      url = 'https://api.openai.com/v1/models';
+    } else {
+      url = spCustomEndpointInput.value.trim() || 'http://localhost:8000/v1/models';
+    }
+
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${key}`
+      }
+    });
+
+    if (res.ok) {
+      spTestKeyStatus.className = 'test-status success';
+      spTestKeyStatus.textContent = '✓ Connected!';
+    } else {
+      spTestKeyStatus.className = 'test-status error';
+      spTestKeyStatus.textContent = `✗ Failed (${res.status})`;
+    }
+  } catch (err) {
+    spTestKeyStatus.className = 'test-status error';
+    spTestKeyStatus.textContent = '✗ Connection error';
+  }
+
+  setTimeout(() => {
+    spTestKeyStatus.textContent = '';
+  }, 4000);
+}
+
+async function handleSpSaveSettings() {
+  const storage = await chrome.storage.local.get('sightscribe_settings');
+  const existing = storage.sightscribe_settings || {};
+
+  const newSettings = {
+    ...existing,
+    provider: spProviderSelect.value,
+    apiKey: spApiKeyInput.value.trim(),
+    model: spModelSelect.value,
+    customEndpoint: spCustomEndpointInput.value.trim()
+  };
+
+  await chrome.storage.local.set({ sightscribe_settings: newSettings });
+
+  chrome.runtime.sendMessage({
+    target: 'offscreen',
+    action: 'UPDATE_SETTINGS',
+    settings: newSettings
+  }).catch(() => {});
+
+  await loadProviderSettings();
+
+  spSaveStatus.textContent = '✓ Saved';
+  setTimeout(() => {
+    spSaveStatus.textContent = '';
+    closeSidepanelSettingsModal();
+  }, 700);
+}
+
+/**
  * Handle Start/Stop Captions
  */
 async function handleToggleCapture() {
@@ -284,7 +467,8 @@ async function handleToggleCapture() {
       const storage = await chrome.storage.local.get('sightscribe_settings');
       const settings = storage.sightscribe_settings;
       if (!settings || !settings.apiKey || settings.apiKey.trim() === '') {
-        showError('Please set your Groq or OpenAI API key in the extension popup settings before starting.');
+        showError('Please set your Groq or OpenAI API key in Settings before starting.');
+        openSidepanelSettingsModal();
         toggleCaptureBtn.disabled = false;
         return;
       }

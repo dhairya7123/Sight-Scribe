@@ -68,6 +68,12 @@
               <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
             </svg>
           </button>
+          <button id="sidepanelSettingsBtn" class="tool-btn" title="AI Model & API Key Settings">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
           <button id="copyAllBtn" class="tool-btn" title="Copy All Transcripts">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -145,6 +151,77 @@
     <!-- Success Toast Notification -->
     <div id="successToast" class="toast-success hidden">
       <span id="successMessage">Action succeeded!</span>
+    </div>
+
+    <!-- Settings Menu Modal (Opened by clicking the Settings Icon) -->
+    <div id="sidepanelSettingsModal" class="settings-modal hidden" role="dialog" aria-modal="true" aria-labelledby="spSettingsTitle">
+      <div class="settings-backdrop" id="closeSidepanelSettingsBackdrop"></div>
+      <div class="settings-dialog">
+        <div class="settings-dialog-header">
+          <div class="settings-title-wrap">
+            <svg class="settings-title-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            <h2 id="spSettingsTitle">AI Engine & Model Settings</h2>
+          </div>
+          <button id="closeSidepanelSettingsBtn" class="close-dialog-btn" title="Close Settings" aria-label="Close Settings">&times;</button>
+        </div>
+
+        <div class="settings-dialog-body">
+          <!-- Speech AI Engine -->
+          <div class="form-group">
+            <label for="spProviderSelect">Speech AI Engine</label>
+            <select id="spProviderSelect">
+              <option value="groq">Groq Whisper Turbo (Free & Blazing Fast)</option>
+              <option value="openai">OpenAI Whisper API</option>
+              <option value="custom">Custom Whisper / OpenAI Compatible</option>
+            </select>
+          </div>
+
+          <!-- API Key Input -->
+          <div class="form-group">
+            <div class="label-with-link">
+              <label for="spApiKeyInput">API Key</label>
+              <a href="https://console.groq.com/keys" target="_blank" id="spApiKeyLink" class="helper-link">Get Free Key ↗</a>
+            </div>
+            <div class="input-with-action">
+              <input type="password" id="spApiKeyInput" placeholder="gsk_... or sk-..." />
+              <button type="button" id="spToggleKeyVisibilityBtn" class="action-btn" title="Show/Hide Key">
+                <svg id="spEyeIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
+            <div class="test-key-row">
+              <button type="button" id="spTestApiKeyBtn" class="btn-outline-sm">Test Connection</button>
+              <span id="spTestKeyStatus" class="test-status"></span>
+            </div>
+          </div>
+
+          <!-- Model Selection -->
+          <div class="form-group">
+            <label for="spModelSelect">AI Model</label>
+            <select id="spModelSelect">
+              <option value="whisper-large-v3-turbo">whisper-large-v3-turbo (Recommended)</option>
+              <option value="whisper-large-v3">whisper-large-v3 (Highest Accuracy)</option>
+            </select>
+          </div>
+
+          <!-- Custom Endpoint -->
+          <div class="form-group hidden" id="spCustomEndpointGroup">
+            <label for="spCustomEndpointInput">Custom Endpoint URL</label>
+            <input type="text" id="spCustomEndpointInput" placeholder="http://localhost:8000/v1/audio/transcriptions" />
+          </div>
+
+          <!-- Save button feedback -->
+          <div class="settings-footer">
+            <button id="spSaveSettingsBtn" class="btn-save">Save Settings</button>
+            <span id="spSaveStatus" class="save-status"></span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Footer Controls -->
